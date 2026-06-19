@@ -95,7 +95,7 @@
                     <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
                 <!-- Sync Button -->
-                <button onclick="syncData()" class="text-gray-500 hover:text-green-600 relative transition-colors p-1" title="Sync with Google Sheets">
+                <button id="sync-btn" onclick="syncData(false)" class="text-gray-500 hover:text-green-600 relative transition-colors p-1" title="Sync with Google Sheets">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
                 <!-- Admin Access Icon -->
@@ -173,15 +173,20 @@
             }
         }
 
-        async function syncData() {
+        async function syncData(isSilent = false) {
             if(GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
-                alert("Harap masukkan URL Web App Google Apps Script Anda.");
+                if(!isSilent) alert("Harap masukkan URL Web App Google Apps Script Anda.");
                 navigate('dashboard');
                 return;
             }
 
             try {
-                document.body.style.cursor = 'wait';
+                if(!isSilent) document.body.style.cursor = 'wait';
+                
+                // Tambahkan animasi berputar pada tombol sync
+                const syncBtn = document.getElementById('sync-btn');
+                if(syncBtn) syncBtn.classList.add('animate-spin', 'text-blue-500');
+
                 const res = await sendDataToGoogleSheets("FETCH_ALL_DATA", {});
                 
                 if (res && res.status === "success" && res.data) {
@@ -196,13 +201,19 @@
                         });
                         return crew;
                     });
-                } else {
+
+                    // Simpan data terbaru ke Cache Lokal (Local Storage)
+                    localStorage.setItem('ecrew_cached_data', JSON.stringify(mockData));
+                } else if (!isSilent) {
                     mockData = [];
                 }
             } catch (error) {
                 console.error("Error saat sinkronisasi:", error);
             } finally {
-                document.body.style.cursor = 'default';
+                if(!isSilent) document.body.style.cursor = 'default';
+                const syncBtn = document.getElementById('sync-btn');
+                if(syncBtn) syncBtn.classList.remove('animate-spin', 'text-blue-500');
+                
                 navigate(currentView);
             }
         }
@@ -872,7 +883,7 @@
                     doc.setTextColor(15, 23, 42);
                     doc.setFont("helvetica", "bold");
                     doc.setFontSize(12);
-                    const titleText = `${index + 1}. ${cat.name}`;
+                    const titleText = cat.name;
                     const pageWidth = doc.internal.pageSize.getWidth();
                     const textWidth = doc.getTextWidth(titleText);
                     const titleX = (pageWidth - textWidth) / 2;
@@ -1114,7 +1125,27 @@
             }
         }
 
-        syncData();
+        function initApp() {
+            // Cek apakah ada data cache tersimpan
+            const cachedData = localStorage.getItem('ecrew_cached_data');
+            
+            if (cachedData) {
+                try {
+                    mockData = JSON.parse(cachedData);
+                    // Render instan dengan data cache
+                    navigate('dashboard');
+                    // Fetch data terbaru secara diam-diam di latar belakang
+                    syncData(true);
+                } catch (e) {
+                    syncData(false);
+                }
+            } else {
+                // Fetch data normal jika pertama kali buka (belum ada cache)
+                syncData(false);
+            }
+        }
+
+        initApp();
 
     </script>
 </body>
