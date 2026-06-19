@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecrew Mandatory Training Record</title>
+    <!-- Menggunakan Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Menggunakan Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Menggunakan jsPDF dan AutoTable untuk ekspor PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* Custom scrollbar untuk area yang panjang */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased h-screen overflow-hidden flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white flex flex-col h-full shadow-xl z-20 flex-shrink-0">
+        <!-- Logo Area -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-700 bg-slate-950">
+            <svg class="w-8 h-8 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            <h1 class="text-lg font-bold tracking-wider">ECREW<span class="text-blue-400">REC</span></h1>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="flex-1 py-6 px-3" id="sidebar-nav">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Main Menu</div>
+            <a href="#" onclick="navigate('dashboard'); return false;" id="nav-dashboard" class="flex items-center px-3 py-2.5 mb-1 rounded-lg bg-blue-600 text-white shadow-md transition-colors">
+                <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+            <a href="#" onclick="handleAdminNav(); return false;" id="nav-admin" class="flex items-center px-3 py-2.5 mb-1 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors mt-2">
+                <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <span class="text-sm font-medium">Admin Panel</span>
+            </a>
+        </nav>
+
+        <!-- User Profile Stub -->
+        <div class="p-4 border-t border-slate-700 bg-slate-800 flex items-center">
+            <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white shadow-inner">
+                AD
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium">Admin User</p>
+                <p class="text-xs text-slate-400">Crew Planning</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50">
+        
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm z-10 flex-shrink-0">
+            <h2 id="page-title" class="text-xl font-semibold text-slate-800 uppercase tracking-wide">Dashboard</h2>
+            
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <input type="text" placeholder="Global search..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64 bg-gray-50">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <!-- Sync Button -->
+                <button onclick="syncData()" class="text-gray-500 hover:text-green-600 relative transition-colors" title="Sync with Google Sheets">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+                <!-- Admin Access Icon -->
+                <button onclick="handleAdminNav()" class="text-gray-500 hover:text-blue-600 relative" title="Admin Access">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Content Container -->
+        <main id="main-content" class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <!-- Content will be injected here -->
+        </main>
+    </div>
+
+    <script>
+        // --- DATA & STATE DEFINITION ---
+        const categories = [
+            { id: 'crm', name: 'Mandatory Crew Resources Management' },
+            { id: 'dg', name: 'Dangerous Good' },
+            { id: 'windshear', name: 'Windshear' },
+            { id: 'alar', name: 'ALAR CFIT' },
+            { id: 'emergency', name: 'Crew Emergency Training' },
+            { id: 'english', name: 'English Proficiency' },
+            { id: 'medical', name: 'Medical Examination' },
+            { id: 'nav', name: 'Performance Basic Navigation' },
+            { id: 'passport', name: 'Passport' },
+            { id: 'ppc', name: 'Proficiency Pilot Check' },
+            { id: 'loa', name: 'Letter of Authorization' },
+            { id: 'company_check', name: 'Company Check Pilot' },
+            { id: 'line_check', name: 'Annual Line Check' },
+            { id: 'avsec', name: 'Aviation Security' },
+            { id: 'sms', name: 'Safety Management System' },
+            { id: 'approval', name: 'Initial & Final Approval' }
+        ];
+
+        let isAdminLoggedIn = false;
+        let editCrewId = null;
+        let isTableEditMode = false;
+        let currentView = 'dashboard';
+        
+        // --- GOOGLE SHEETS API CONFIGURATION ---
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiBVxStx7mi9L0VlVOsn4_bxECrXz6pXKXLCdlFP-NVxtkhFR1x64KmIwmRmo_CoGo/exec"; 
+        
+        let formNoAllData = "F-TWA-OPS-057-01";
+        let formNoCategory = "F-TWA-OPS-058-01";
+
+        let mockData = [];
+
+        // --- GOOGLE SHEETS API FUNCTIONS ---
+        async function sendDataToGoogleSheets(action, payload) {
+            if(GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
+                console.log("Simulasi Lokal. Aksi:", action, "Payload:", payload);
+                return { status: "success", simulated: true };
+            }
+
+            try {
+                const dataToPost = { action: action, ...payload };
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(dataToPost)
+                });
+                
+                const responseText = await response.text();
+                try {
+                    return JSON.parse(responseText);
+                } catch (parseError) {
+                    return { status: "success", raw: responseText };
+                }
+            } catch (error) {
+                console.error("Gagal mengirim data:", error);
+                return { status: "error", message: error.message };
+            }
+        }
+
+        async function syncData() {
+            if(GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
+                alert("Harap masukkan URL Web App Google Apps Script Anda.");
+                navigate('dashboard');
+                return;
+            }
+
+            try {
+                document.body.style.cursor = 'wait';
+                const res = await sendDataToGoogleSheets("FETCH_ALL_DATA", {});
+                
+                if (res && res.status === "success" && res.data) {
+                    mockData = res.data.map(crew => {
+                        // Pastikan objek training ada (Fallback safety)
+                        if (!crew.training) crew.training = {};
+                        categories.forEach(cat => {
+                            if (!crew.training[cat.id]) {
+                                crew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4' };
+                            }
+                            recalculateStatus(crew, cat.id);
+                        });
+                        return crew;
+                    });
+                } else {
+                    mockData = [];
+                }
+            } catch (error) {
+                console.error("Error saat sinkronisasi:", error);
+            } finally {
+                document.body.style.cursor = 'default';
+                navigate(currentView);
+            }
+        }
+
+        // --- UTILITY FUNCTIONS ---
+        function formatDate(dateStr) {
+            if (!dateStr || dateStr === '') return '-';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert YYYY-MM-DD to DD-MM-YYYY
+        }
+
+        function recalculateStatus(crew, categoryId) {
+            const training = crew.training[categoryId];
+            
+            // Handle if no data yet
+            if (!training.expiryDate || training.expiryDate === '') {
+                training.status = 'No Data';
+                training.statusColor = 'bg-slate-100 text-slate-800 border border-slate-200';
+                training.daysLeft = 0;
+                return;
+            }
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const expDate = new Date(training.expiryDate);
+            expDate.setHours(0,0,0,0);
+            
+            const timeDiff = expDate.getTime() - today.getTime();
+            const daysOffset = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            training.daysLeft = daysOffset;
+
+            if (daysOffset < 0) {
+                training.status = 'Expired';
+                training.statusColor = 'bg-red-100 text-red-800 border border-red-200';
+            } else if (daysOffset <= 60) {
+                training.status = 'Expiring Soon';
+                training.statusColor = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+            } else {
+                training.status = 'Valid';
+                training.statusColor = 'bg-green-100 text-green-800 border border-green-200';
+            }
+        }
+
+        async function toggleTableEditMode(categoryId) {
+            if (isTableEditMode) {
+                document.body.style.cursor = 'wait';
+                
+                // Ambil hanya data untuk kategori sheet saat ini
+                const payloadData = mockData.map(c => ({
+                    id: c.id,
+                    training: c.training[categoryId]
+                }));
+
+                const res = await sendDataToGoogleSheets("UPDATE_CATEGORY", { 
+                    category: categoryId, 
+                    data: payloadData 
+                });
+                document.body.style.cursor = 'default';
+                
+                if(res.status !== "success") {
+                    alert("Gagal menyimpan data ke server! Silakan coba lagi.");
+                }
+            }
+            
+            isTableEditMode = !isTableEditMode;
+            const category = categories.find(c => c.id === categoryId);
+            renderTable(category);
+        }
+
+        function updateCrewField(id, categoryId, field, value) {
+            const crew = mockData.find(c => c.id === id);
+            if (crew) {
+                crew.training[categoryId][field] = value;
+                if (field === 'expiryDate') {
+                    recalculateStatus(crew, categoryId);
+                }
+                const category = categories.find(c => c.id === currentView);
+                if(category) renderTable(category);
+            }
+        }
+
+        async function duplicateCrewItem(id, categoryId) {
+            const crew = mockData.find(c => c.id === id);
+            if(crew) {
+                const newId = `CRW-${Math.floor(2000 + Math.random() * 8000)}`;
+                // Duplikat master dan copy training array-nya
+                const newCrew = JSON.parse(JSON.stringify(crew)); 
+                newCrew.id = newId;
+                newCrew.name = `${crew.name} (Copy)`;
+
+                mockData.unshift(newCrew);
+
+                document.body.style.cursor = 'wait';
+                await sendDataToGoogleSheets("ADD_CREW_MASTER", { crew: newCrew });
+                // Note: Pada backend, fetch data ulang biasanya dibutuhkan agar state bersih
+                document.body.style.cursor = 'default';
+
+                const category = categories.find(c => c.id === categoryId);
+                renderTable(category);
+            }
+        }
+
+        async function deleteCrewItem(id, categoryId) {
+            if(confirm('Are you sure you want to delete this crew member from the ENTIRE system?')) {
+                mockData = mockData.filter(c => c.id !== id);
+                await sendDataToGoogleSheets("DELETE_CREW_MASTER", { id: id });
+
+                const category = categories.find(c => c.id === categoryId);
+                renderTable(category);
+            }
+        }
+
+        // --- UI RENDERERS ---
+
+        function renderDashboard() {
+            // Kalkulasi Status untuk Dashboard berdasarkan "Status Terburuk" dari Crew
+            let validCount = 0;
+            let expiringCount = 0;
+            let expiredCount = 0;
+
+            mockData.forEach(crew => {
+                let crewStatus = 'Valid';
+                // Loop semua kategori yang ia miliki
+                for (let cat of categories) {
+                    const s = crew.training[cat.id].status;
+                    if (s === 'Expired') {
+                        crewStatus = 'Expired';
+                        break; // Jika ada 1 yang expired, langsung cap Expired
+                    }
+                    if (s === 'Expiring Soon') {
+                        crewStatus = 'Expiring Soon'; // Jika tidak ada expired, setidaknya expiring soon
+                    }
+                }
+                
+                if (crewStatus === 'Expired') expiredCount++;
+                else if (crewStatus === 'Expiring Soon') expiringCount++;
+                else validCount++;
+            });
+            
+            const trainingCardsHtml = categories.map(cat => `
+                <div onclick="navigate('${cat.id}')" class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md hover:border-blue-400 hover:-translate-y-1 transition-all duration-200 flex items-center group">
+                    <div class="p-3 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors mr-4 flex-shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="overflow-hidden">
+                        <h4 class="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors truncate" title="${cat.name}">${cat.name}</h4>
+                        <p class="text-xs text-slate-500 mt-1">Click to view records &rarr;</p>
+                    </div>
+                </div>
+            `).join('');
+
+            const html = `
+                <div class="mb-8 flex justify-between items-start">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">Fleet Overview</h3>
+                        <p class="text-slate-500 text-sm mt-1">Summary of all mandatory training compliances.</p>
+                    </div>
+                    <button onclick="exportDashboardPDF()" class="px-4 py-2 bg-slate-800 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-slate-900 shadow-sm flex items-center transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Download PDF
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
+                        <div class="p-4 rounded-full bg-slate-100 text-slate-600 mb-3">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Total Tracked Crew</p>
+                        <p class="text-3xl font-bold text-slate-800">${mockData.length}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
+                        <div class="p-4 rounded-full bg-green-50 text-green-600 mb-3">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Fully Compliant</p>
+                        <p class="text-3xl font-bold text-slate-800">${validCount}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
+                        <div class="p-4 rounded-full bg-yellow-50 text-yellow-600 mb-3">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Expiring <= 60 Days</p>
+                        <p class="text-3xl font-bold text-slate-800">${expiringCount}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
+                        <div class="p-4 rounded-full bg-red-50 text-red-600 mb-3">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Critical / Expired</p>
+                        <p class="text-3xl font-bold text-slate-800">${expiredCount}</p>
+                    </div>
+                </div>
+
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-slate-800">Training & Certificates Categories</h3>
+                    <span class="text-sm text-slate-500">${categories.length} Mandatory Items</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-8">
+                    ${trainingCardsHtml}
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function renderTable(categoryData) {
+            const updateBtnHTML = isTableEditMode 
+                ? `<button onclick="toggleTableEditMode('${categoryData.id}')" class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-green-700 shadow-sm flex items-center transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Done Editing
+                </button>`
+                : `<button onclick="toggleTableEditMode('${categoryData.id}')" class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-blue-700 shadow-sm flex items-center transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    Update Record
+                </button>`;
+
+            let lastDateTitle = "Last Mandatory Date";
+            switch(categoryData.id) {
+                case 'medical': lastDateTitle = "Last Medical Date"; break;
+                case 'nav': lastDateTitle = "Last PBN Date"; break;
+                case 'passport':
+                case 'loa':
+                case 'company_check':
+                case 'approval': lastDateTitle = "Date of Issue"; break;
+                case 'ppc': lastDateTitle = "Last PPC Date"; break;
+                case 'line_check': lastDateTitle = "Last Annual Check"; break;
+            }
+
+            const isNoExpiryCat = categoryData.id === 'avsec' || categoryData.id === 'sms';
+            const expiryDateTitle = isNoExpiryCat ? "Date of Conduct" : "Date of Expiry";
+
+            const html = `
+                <div class="mb-6">
+                    <button onclick="navigate('dashboard')" class="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium transition-colors">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Dashboard
+                    </button>
+                </div>
+
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">${categoryData.name}</h3>
+                        <p class="text-slate-500 text-sm mt-1">Manage records and validity for this mandatory item.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="exportCategoryPDF('${categoryData.id}')" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm flex items-center transition-colors">
+                            <svg class="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Export PDF
+                        </button>
+                        ${updateBtnHTML}
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-y border-gray-200">
+                                    <th class="px-6 py-3 font-medium">Name & Rank</th>
+                                    ${categoryData.id === 'english' ? '<th class="px-6 py-3 font-medium">English Level</th>' : ''}
+                                    ${!isNoExpiryCat ? `<th class="px-6 py-3 font-medium">${lastDateTitle}</th>` : ''}
+                                    <th class="px-6 py-3 font-medium">${expiryDateTitle}</th>
+                                    <th class="px-6 py-3 font-medium">Status</th>
+                                    ${isTableEditMode ? '<th class="px-6 py-3 font-medium text-right">Actions</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-sm">
+                                ${mockData.map(crew => {
+                                    const trainingData = crew.training[categoryData.id];
+                                    const displayStatus = isNoExpiryCat ? 'Current' : trainingData.status;
+                                    const displayStatusColor = isNoExpiryCat ? 'bg-green-100 text-green-800 border border-green-200' : trainingData.statusColor;
+
+                                    return `
+                                    <tr class="hover:bg-slate-50 transition-colors group">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs mr-3">
+                                                    ${crew.name.split(' ').map(n=>n[0]).join('').substring(0,2)}
+                                                </div>
+                                                <div>
+                                                    <div class="font-medium text-slate-800">${crew.name}</div>
+                                                    <div class="text-xs text-slate-500">${crew.id} • ${crew.rank}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        
+                                        ${categoryData.id === 'english' ? `
+                                            <td class="px-6 py-4">
+                                                ${isTableEditMode 
+                                                    ? `<select onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'englishLevel', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                                        <option value="Level 4" ${trainingData.englishLevel === 'Level 4' ? 'selected' : ''}>Level 4</option>
+                                                        <option value="Level 6" ${trainingData.englishLevel === 'Level 6' ? 'selected' : ''}>Level 6</option>
+                                                       </select>` 
+                                                    : `<span class="font-medium text-slate-700">${trainingData.englishLevel || '-'}</span>`}
+                                            </td>
+                                        ` : ''}
+
+                                        ${!isNoExpiryCat ? `
+                                            <td class="px-6 py-4 text-slate-600">
+                                                ${isTableEditMode
+                                                    ? `<input type="date" value="${trainingData.issueDate || ''}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
+                                                    : formatDate(trainingData.issueDate)
+                                                }
+                                            </td>
+                                        ` : ''}
+
+                                        <td class="px-6 py-4 text-slate-800 font-medium">
+                                            ${isTableEditMode
+                                                ? `<input type="date" value="${isNoExpiryCat ? (trainingData.issueDate || '') : (trainingData.expiryDate || '')}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
+                                                : formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)
+                                            }
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${displayStatusColor}">
+                                                ${displayStatus}
+                                            </span>
+                                        </td>
+
+                                        ${isTableEditMode ? `
+                                            <td class="px-6 py-4 text-right">
+                                                <button onclick="duplicateCrewItem('${crew.id}', '${categoryData.id}')" class="text-green-600 hover:text-green-800 mr-3 text-xs font-medium transition-colors">Duplicate</button>
+                                                <button onclick="deleteCrewItem('${crew.id}', '${categoryData.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                            </td>
+                                        ` : ''}
+                                    </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        // --- ADMIN PAGES ---
+        
+        function renderAdminLogin() {
+            const html = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
+                        <div class="text-center mb-8">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-800 mb-4">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-slate-800">Admin Authentication</h2>
+                            <p class="text-sm text-slate-500 mt-1">Please log in to manage crew data.</p>
+                        </div>
+                        <form onsubmit="handleLoginSubmit(event)">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                                <input type="text" id="login-username" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Enter username">
+                            </div>
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                                <input type="password" id="login-password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
+                            </div>
+                            <div id="login-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
+                                Invalid username or password.
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 text-white font-medium py-2.5 rounded-lg hover:bg-slate-800 transition-colors">
+                                Log In to Admin Panel
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function renderAdminDashboard() {
+            const html = `
+                <div class="mb-6 flex justify-between items-start">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">Admin Panel: Workspace</h3>
+                        <p class="text-slate-500 text-sm mt-1">Manage PDF Form Numbers and Crew records.</p>
+                    </div>
+                    <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        Logout
+                    </button>
+                </div>
+
+                <!-- Add/Edit Form -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                    <h4 class="font-semibold text-slate-800 mb-4 border-b pb-2 flex items-center" id="form-title">
+                        <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                        Tambah Data Identitas Pilot / Crew
+                    </h4>
+                    <form onsubmit="handleCrewSubmit(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
+                            <input type="text" id="crew-name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Full Name">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Rank</label>
+                            <select id="crew-rank" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                <option value="" disabled selected>Select Rank</option>
+                                <option value="Captain">Captain</option>
+                                <option value="First Officer">First Officer</option>
+                                <option value="Cabin Service">Cabin Service</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">License No.</label>
+                            <input type="text" id="crew-license" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. LIC-12345">
+                        </div>
+                        <div class="md:col-span-1 flex gap-2">
+                            <button type="submit" id="submit-btn" class="flex-1 bg-blue-600 text-white text-sm font-medium py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm">
+                                Save Data
+                            </button>
+                            <button type="button" onclick="resetForm()" class="px-3 bg-gray-100 text-gray-600 text-sm font-medium py-2 rounded-md hover:bg-gray-200 transition-colors border border-gray-200 hidden" id="cancel-btn">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Crew List Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                        <h4 class="font-semibold text-slate-800">Daftar Master Data Crew</h4>
+                        <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-medium">Total: ${mockData.length} Records</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white text-xs text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                    <th class="px-6 py-3 font-medium">ID</th>
+                                    <th class="px-6 py-3 font-medium">Name</th>
+                                    <th class="px-6 py-3 font-medium">Rank</th>
+                                    <th class="px-6 py-3 font-medium">License No.</th>
+                                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-sm">
+                                ${mockData.map(crew => `
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-500">${crew.id}</td>
+                                        <td class="px-6 py-3 font-medium text-slate-800">${crew.name}</td>
+                                        <td class="px-6 py-3">
+                                            <span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">${crew.rank}</span>
+                                        </td>
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">${crew.licenseNo || '-'}</td>
+                                        <td class="px-6 py-3 text-right">
+                                            <button onclick="prepareEdit('${crew.id}')" class="text-blue-500 hover:text-blue-700 mr-3 text-xs font-medium transition-colors">Edit</button>
+                                            <button onclick="deleteCrew('${crew.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        // --- ADMIN LOGIC & HANDLERS ---
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const u = document.getElementById('login-username').value;
+            const p = document.getElementById('login-password').value;
+
+            if (u === 'admin' && p === 'ramdan28') {
+                isAdminLoggedIn = true;
+                navigate('admin-dashboard');
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            isAdminLoggedIn = false;
+            navigate('dashboard');
+        }
+
+        function handleAdminNav() {
+            if (isAdminLoggedIn) {
+                navigate('admin-dashboard');
+            } else {
+                navigate('admin-login');
+            }
+        }
+
+        async function handleCrewSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('crew-name').value;
+            const rank = document.getElementById('crew-rank').value;
+            const licenseNo = document.getElementById('crew-license').value;
+            const submitBtn = document.getElementById('submit-btn');
+
+            const originalBtnText = submitBtn.innerText;
+            submitBtn.innerText = "Saving to Sheets...";
+            submitBtn.disabled = true;
+            document.body.style.cursor = 'wait';
+
+            try {
+                if (editCrewId) {
+                    // Update Existing
+                    const index = mockData.findIndex(c => c.id === editCrewId);
+                    if (index > -1) {
+                        mockData[index].name = name;
+                        mockData[index].rank = rank;
+                        mockData[index].licenseNo = licenseNo;
+                        
+                        await sendDataToGoogleSheets("EDIT_CREW_MASTER", { crew: mockData[index] });
+                    }
+                } else {
+                    // Create New
+                    const newId = `CRW-${Math.floor(2000 + Math.random() * 8000)}`;
+                    const newCrew = {
+                        id: newId,
+                        name: name,
+                        rank: rank,
+                        licenseNo: licenseNo,
+                        training: {}
+                    };
+                    
+                    // Inisialisasi training kosong agar status bisa dikalkulasi
+                    categories.forEach(cat => {
+                        newCrew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4' };
+                        recalculateStatus(newCrew, cat.id);
+                    });
+
+                    mockData.unshift(newCrew);
+                    await sendDataToGoogleSheets("ADD_CREW_MASTER", { crew: newCrew });
+                }
+            } catch (err) {
+                console.error("Error saat menyimpan:", err);
+                alert("Terjadi kesalahan sistem saat mencoba menyimpan.");
+            } finally {
+                document.body.style.cursor = 'default';
+                submitBtn.innerText = originalBtnText;
+                submitBtn.disabled = false;
+                resetForm();
+                renderAdminDashboard(); // Refresh table
+            }
+        }
+
+        function prepareEdit(id) {
+            const crew = mockData.find(c => c.id === id);
+            if (!crew) return;
+
+            document.getElementById('crew-name').value = crew.name;
+            document.getElementById('crew-rank').value = crew.rank;
+            document.getElementById('crew-license').value = crew.licenseNo || '';
+            
+            editCrewId = id;
+            document.getElementById('form-title').innerHTML = `
+                <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Edit Data Pilot: ${crew.id}`;
+            document.getElementById('submit-btn').innerText = "Update Data";
+            document.getElementById('submit-btn').classList.replace('bg-blue-600', 'bg-yellow-500');
+            document.getElementById('submit-btn').classList.replace('hover:bg-blue-700', 'hover:bg-yellow-600');
+            document.getElementById('cancel-btn').classList.remove('hidden');
+            
+            document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function resetForm() {
+            editCrewId = null;
+            if(document.getElementById('crew-name')) {
+                document.getElementById('crew-name').value = '';
+                document.getElementById('crew-rank').value = '';
+                document.getElementById('crew-license').value = '';
+                document.getElementById('form-title').innerHTML = `
+                    <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                    Tambah Data Identitas Pilot / Crew`;
+                document.getElementById('submit-btn').innerText = "Save Data";
+                document.getElementById('submit-btn').classList.replace('bg-yellow-500', 'bg-blue-600');
+                document.getElementById('submit-btn').classList.replace('hover:bg-yellow-600', 'hover:bg-blue-700');
+                document.getElementById('cancel-btn').classList.add('hidden');
+            }
+        }
+
+        async function deleteCrew(id) {
+            if(confirm('Are you sure you want to delete this crew record? This will remove them from all sheets.')) {
+                mockData = mockData.filter(c => c.id !== id);
+                await sendDataToGoogleSheets("DELETE_CREW_MASTER", { id: id });
+                renderAdminDashboard();
+            }
+        }
+
+        // --- PDF EXPORT LOGIC ---
+        
+        function exportDashboardPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'pt', 'a4');
+            const today = new Date().toLocaleDateString('en-GB');
+
+            const generatePDF = (logoImg) => {
+                doc.setFillColor(15, 23, 42); 
+                doc.rect(0, 0, 600, 100, 'F'); 
+                
+                if (logoImg) {
+                    const maxImgHeight = 70;
+                    const maxImgWidth = 150;
+                    let imgWidth = logoImg.width;
+                    let imgHeight = logoImg.height;
+                    
+                    const ratio = Math.min(maxImgWidth / imgWidth, maxImgHeight / imgHeight);
+                    imgWidth *= ratio;
+                    imgHeight *= ratio;
+
+                    const pdfWidth = doc.internal.pageSize.getWidth();
+                    const xPos = pdfWidth - 40 - imgWidth;
+                    const yPos = (100 - imgHeight) / 2;
+
+                    doc.addImage(logoImg, 'PNG', xPos, yPos, imgWidth, imgHeight);
+                }
+
+                doc.setTextColor(255, 255, 255);
+                
+                doc.setFontSize(20);
+                doc.setFont("helvetica", "bold");
+                doc.text("MANDATORY TRAINING PILOT", 40, 42);
+                
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text("Transwisata Prima Aviation", 40, 62);
+                
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Form no: ${formNoAllData}`, 40, 80);
+
+                let validCount = 0;
+                let expiringCount = 0;
+                let expiredCount = 0;
+
+                mockData.forEach(crew => {
+                    let crewStatus = 'Valid';
+                    for (let cat of categories) {
+                        const s = crew.training[cat.id].status;
+                        if (s === 'Expired') { crewStatus = 'Expired'; break; }
+                        if (s === 'Expiring Soon') { crewStatus = 'Expiring Soon'; }
+                    }
+                    if (crewStatus === 'Expired') expiredCount++;
+                    else if (crewStatus === 'Expiring Soon') expiringCount++;
+                    else validCount++;
+                });
+
+                doc.setTextColor(51, 65, 85); 
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                
+                doc.text(`Total Tracked Crew: ${mockData.length}`, 40, 130);
+                doc.text(`Fully Compliant: ${validCount}`, 40, 145);
+                doc.text(`Expiring <= 60 Days: ${expiringCount}`, 250, 130);
+                doc.text(`Critical / Expired: ${expiredCount}`, 250, 145);
+
+                doc.setDrawColor(226, 232, 240); 
+                doc.line(40, 160, 550, 160);
+
+                let currentY = 190;
+
+                categories.forEach((cat, index) => {
+                    if (cat.id === 'dashboard') return;
+
+                    if (currentY > 700) {
+                        doc.addPage();
+                        currentY = 40;
+                    }
+
+                    doc.setTextColor(15, 23, 42);
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(12);
+                    const titleText = `${index + 1}. ${cat.name}`;
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const textWidth = doc.getTextWidth(titleText);
+                    const titleX = (pageWidth - textWidth) / 2;
+                    doc.text(titleText, titleX, currentY);
+                    currentY += 15;
+
+                    let lastDateTitle = "Last Mandatory Date";
+                    switch(cat.id) {
+                        case 'medical': lastDateTitle = "Last Medical Date"; break;
+                        case 'nav': lastDateTitle = "Last PBN Date"; break;
+                        case 'passport':
+                        case 'loa':
+                        case 'company_check':
+                        case 'approval': lastDateTitle = "Date of Issue"; break;
+                        case 'ppc': lastDateTitle = "Last PPC Date"; break;
+                        case 'line_check': lastDateTitle = "Last Annual Check"; break;
+                    }
+
+                    const isNoExpiryCat = cat.id === 'avsec' || cat.id === 'sms';
+                    const expiryDateTitle = isNoExpiryCat ? "Date of Conduct" : "Date of Expiry";
+
+                    let headRow = ['No', 'Rank, Name & License No.'];
+                    if (cat.id === 'english') headRow.push('English Level');
+                    if (!isNoExpiryCat) headRow.push(lastDateTitle);
+                    headRow.push(expiryDateTitle);
+                    headRow.push('Status');
+
+                    const head = [headRow];
+                    const body = mockData.map((crew, idx) => {
+                        const license = crew.licenseNo ? crew.licenseNo : '-';
+                        const formattedName = `${crew.rank} ${crew.name} ${license}`;
+                        const training = crew.training[cat.id];
+
+                        let row = [idx + 1, formattedName];
+                        if (cat.id === 'english') row.push(training.englishLevel || '-');
+                        if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
+                        row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
+                        row.push(isNoExpiryCat ? 'Current' : (training.status || '-'));
+                        return row;
+                    });
+
+                    doc.autoTable({
+                        startY: currentY,
+                        head: head,
+                        body: body,
+                        theme: 'grid',
+                        headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontSize: 9, halign: 'center' },
+                        bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
+                        columnStyles: { 1: { halign: 'left' } },
+                        margin: { left: 40, right: 40 },
+                        didParseCell: function(data) {
+                            if (data.section === 'body' && data.column.index === headRow.length - 1) {
+                                if (data.cell.raw === 'Valid' || data.cell.raw === 'Current') data.cell.styles.textColor = [21, 128, 61]; 
+                                else if (data.cell.raw === 'Expiring Soon') data.cell.styles.textColor = [161, 98, 7];
+                                else if (data.cell.raw === 'Expired') data.cell.styles.textColor = [185, 28, 28];
+                                data.cell.styles.fontStyle = 'bold';
+                            }
+                        }
+                    });
+
+                    currentY = doc.lastAutoTable.finalY + 30;
+                });
+
+                doc.save(`Ecrew_Full_Mandatory_Report_${today.replace(/\//g, '-')}.pdf`);
+            };
+
+            const logoUrl = "https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7";
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() { generatePDF(this); };
+            img.onerror = function() { generatePDF(null); }; 
+            img.src = logoUrl;
+        }
+
+        function exportCategoryPDF(categoryId) {
+            const category = categories.find(c => c.id === categoryId);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'pt', 'a4');
+            const today = new Date().toLocaleDateString('en-GB');
+
+            const generatePDF = (logoImg) => {
+                doc.setFillColor(15, 23, 42); 
+                doc.rect(0, 0, 600, 100, 'F');
+                
+                if (logoImg) {
+                    const maxImgHeight = 70;
+                    const maxImgWidth = 150;
+                    let imgWidth = logoImg.width;
+                    let imgHeight = logoImg.height;
+                    
+                    const ratio = Math.min(maxImgWidth / imgWidth, maxImgHeight / imgHeight);
+                    imgWidth *= ratio;
+                    imgHeight *= ratio;
+
+                    const pdfWidth = doc.internal.pageSize.getWidth();
+                    const xPos = pdfWidth - 40 - imgWidth;
+                    const yPos = (100 - imgHeight) / 2;
+
+                    doc.addImage(logoImg, 'PNG', xPos, yPos, imgWidth, imgHeight);
+                }
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(20);
+                doc.setFont("helvetica", "bold");
+                doc.text("MANDATORY TRAINING RECORD", 40, 42);
+                
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text(`Category: ${category.name}`, 40, 62);
+
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Form no: ${formNoCategory}`, 40, 80);
+
+                doc.setTextColor(100, 116, 139);
+                doc.setFontSize(9);
+                doc.text(`Document Generated: ${today}`, 40, 125);
+
+                let lastDateTitle = "Last Mandatory Date";
+                switch(categoryId) {
+                    case 'medical': lastDateTitle = "Last Medical Date"; break;
+                    case 'nav': lastDateTitle = "Last PBN Date"; break;
+                    case 'passport':
+                    case 'loa':
+                    case 'company_check':
+                    case 'approval': lastDateTitle = "Date of Issue"; break;
+                    case 'ppc': lastDateTitle = "Last PPC Date"; break;
+                    case 'line_check': lastDateTitle = "Last Annual Check"; break;
+                }
+
+                const isNoExpiryCat = categoryId === 'avsec' || categoryId === 'sms';
+                const expiryDateTitle = isNoExpiryCat ? "Date of Conduct" : "Date of Expiry";
+
+                let headRow = ['No', 'Rank, Name & License No.'];
+                if (categoryId === 'english') headRow.push('English Level');
+                if (!isNoExpiryCat) headRow.push(lastDateTitle);
+                headRow.push(expiryDateTitle);
+                headRow.push('Status');
+
+                const head = [headRow];
+                const body = mockData.map((crew, idx) => {
+                    const license = crew.licenseNo ? crew.licenseNo : '-';
+                    const formattedName = `${crew.rank} ${crew.name} ${license}`;
+                    const training = crew.training[categoryId];
+
+                    let row = [idx + 1, formattedName];
+                    if (categoryId === 'english') row.push(training.englishLevel || '-');
+                    if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
+                    row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
+                    row.push(isNoExpiryCat ? 'Current' : (training.status || '-'));
+                    return row;
+                });
+
+                doc.autoTable({
+                    startY: 145, 
+                    head: head,
+                    body: body,
+                    theme: 'striped',
+                    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 9, halign: 'center' },
+                    bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
+                    columnStyles: { 1: { halign: 'left' } },
+                    margin: { left: 40, right: 40 },
+                    didParseCell: function(data) {
+                        if (data.section === 'body' && data.column.index === headRow.length - 1) {
+                            if (data.cell.raw === 'Valid' || data.cell.raw === 'Current') data.cell.styles.textColor = [21, 128, 61]; 
+                            else if (data.cell.raw === 'Expiring Soon') data.cell.styles.textColor = [161, 98, 7];
+                            else if (data.cell.raw === 'Expired') data.cell.styles.textColor = [185, 28, 28];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                    }
+                });
+
+                doc.save(`Ecrew_${category.name.replace(/\s+/g, '_')}_${today.replace(/\//g, '-')}.pdf`);
+            };
+
+            const logoUrl = "https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7";
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() { generatePDF(this); };
+            img.onerror = function() { generatePDF(null); };
+            img.src = logoUrl;
+        }
+
+        // --- NAVIGATION LOGIC ---
+
+        function navigate(viewId) {
+            currentView = viewId;
+            isTableEditMode = false;
+
+            const dashboardNav = document.getElementById('nav-dashboard');
+            const adminNav = document.getElementById('nav-admin');
+
+            dashboardNav.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+            dashboardNav.classList.add('text-slate-300', 'hover:bg-slate-800');
+            adminNav.classList.remove('bg-slate-800', 'text-white');
+
+            if (viewId === 'dashboard') {
+                dashboardNav.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                dashboardNav.classList.remove('text-slate-300', 'hover:bg-slate-800');
+                document.getElementById('page-title').innerText = "Dashboard";
+                renderDashboard();
+            } else if (viewId === 'admin-login') {
+                adminNav.classList.add('bg-slate-800', 'text-white');
+                document.getElementById('page-title').innerText = "Admin Authentication";
+                renderAdminLogin();
+            } else if (viewId === 'admin-dashboard') {
+                adminNav.classList.add('bg-slate-800', 'text-white');
+                document.getElementById('page-title').innerText = "Admin Workspace";
+                renderAdminDashboard();
+            } else {
+                const category = categories.find(c => c.id === viewId);
+                document.getElementById('page-title').innerText = "Training Record Detail";
+                renderTable(category);
+            }
+        }
+
+        syncData();
+
+    </script>
+</body>
+</html>
