@@ -32,18 +32,27 @@
         }
     </style>
 </head>
-<body class="text-gray-800 antialiased h-screen overflow-hidden flex">
+<body class="text-gray-800 antialiased h-screen overflow-hidden flex relative">
+
+    <!-- Mobile Overlay -->
+    <div id="mobile-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 z-30 hidden md:hidden transition-opacity backdrop-blur-sm"></div>
 
     <!-- Sidebar -->
-    <aside class="w-64 bg-slate-900 text-white flex flex-col h-full shadow-xl z-20 flex-shrink-0">
+    <aside id="sidebar" class="fixed md:static inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 w-64 bg-slate-900 text-white flex flex-col h-full shadow-2xl md:shadow-xl flex-shrink-0">
         <!-- Logo Area -->
-        <div class="h-16 flex items-center px-6 border-b border-slate-700 bg-slate-950">
-            <svg class="w-8 h-8 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-            <h1 class="text-lg font-bold tracking-wider">ECREW<span class="text-blue-400">REC</span></h1>
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-700 bg-slate-950">
+            <div class="flex items-center">
+                <svg class="w-8 h-8 text-blue-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                <h1 class="text-lg font-bold tracking-wider">ECREW<span class="text-blue-400">REC</span></h1>
+            </div>
+            <!-- Close button for mobile -->
+            <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
         </div>
 
         <!-- Navigation Menu -->
-        <nav class="flex-1 py-6 px-3" id="sidebar-nav">
+        <nav class="flex-1 py-6 px-3 overflow-y-auto custom-scrollbar" id="sidebar-nav">
             <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Main Menu</div>
             <a href="#" onclick="navigate('dashboard'); return false;" id="nav-dashboard" class="flex items-center px-3 py-2.5 mb-1 rounded-lg bg-blue-600 text-white shadow-md transition-colors">
                 <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
@@ -68,30 +77,36 @@
     </aside>
 
     <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50">
+    <div class="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50 w-full">
         
         <!-- Header -->
-        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm z-10 flex-shrink-0">
-            <h2 id="page-title" class="text-xl font-semibold text-slate-800 uppercase tracking-wide">Dashboard</h2>
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shadow-sm z-10 flex-shrink-0 w-full">
+            <div class="flex items-center">
+                <!-- Hamburger Menu Button -->
+                <button onclick="toggleSidebar()" class="md:hidden text-slate-600 hover:text-slate-900 mr-3 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <h2 id="page-title" class="text-lg md:text-xl font-semibold text-slate-800 uppercase tracking-wide truncate max-w-[140px] sm:max-w-xs md:max-w-full">Dashboard</h2>
+            </div>
             
-            <div class="flex items-center space-x-4">
-                <div class="relative">
-                    <input type="text" placeholder="Global search..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64 bg-gray-50">
-                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <div class="flex items-center space-x-2 md:space-x-4">
+                <div class="relative hidden sm:block">
+                    <input type="text" placeholder="Global search..." class="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-32 md:w-64 bg-gray-50 transition-all">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
                 <!-- Sync Button -->
-                <button onclick="syncData()" class="text-gray-500 hover:text-green-600 relative transition-colors" title="Sync with Google Sheets">
+                <button onclick="syncData()" class="text-gray-500 hover:text-green-600 relative transition-colors p-1" title="Sync with Google Sheets">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
                 <!-- Admin Access Icon -->
-                <button onclick="handleAdminNav()" class="text-gray-500 hover:text-blue-600 relative" title="Admin Access">
+                <button onclick="handleAdminNav()" class="text-gray-500 hover:text-blue-600 relative p-1" title="Admin Access">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </button>
             </div>
         </header>
 
         <!-- Dynamic Content Container -->
-        <main id="main-content" class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
             <!-- Content will be injected here -->
         </main>
     </div>
@@ -121,6 +136,7 @@
         let editCrewId = null;
         let isTableEditMode = false;
         let currentView = 'dashboard';
+        let isSidebarOpen = false;
         
         // --- GOOGLE SHEETS API CONFIGURATION ---
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiBVxStx7mi9L0VlVOsn4_bxECrXz6pXKXLCdlFP-NVxtkhFR1x64KmIwmRmo_CoGo/exec"; 
@@ -1042,30 +1058,55 @@
             img.src = logoUrl;
         }
 
+        // --- SIDEBAR LOGIC ---
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            isSidebarOpen = !isSidebarOpen;
+            
+            if (isSidebarOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
         // --- NAVIGATION LOGIC ---
 
         function navigate(viewId) {
             currentView = viewId;
             isTableEditMode = false;
 
+            // Tutup sidebar jika layar berukuran mobile saat navigasi diklik
+            if (window.innerWidth < 768 && isSidebarOpen) {
+                toggleSidebar();
+            }
+
             const dashboardNav = document.getElementById('nav-dashboard');
             const adminNav = document.getElementById('nav-admin');
 
-            dashboardNav.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-            dashboardNav.classList.add('text-slate-300', 'hover:bg-slate-800');
-            adminNav.classList.remove('bg-slate-800', 'text-white');
+            if (dashboardNav && adminNav) {
+                dashboardNav.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                dashboardNav.classList.add('text-slate-300', 'hover:bg-slate-800');
+                adminNav.classList.remove('bg-slate-800', 'text-white');
+
+                if (viewId === 'dashboard') {
+                    dashboardNav.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                    dashboardNav.classList.remove('text-slate-300', 'hover:bg-slate-800');
+                } else if (viewId === 'admin-login' || viewId === 'admin-dashboard') {
+                    adminNav.classList.add('bg-slate-800', 'text-white');
+                }
+            }
 
             if (viewId === 'dashboard') {
-                dashboardNav.classList.add('bg-blue-600', 'text-white', 'shadow-md');
-                dashboardNav.classList.remove('text-slate-300', 'hover:bg-slate-800');
                 document.getElementById('page-title').innerText = "Dashboard";
                 renderDashboard();
             } else if (viewId === 'admin-login') {
-                adminNav.classList.add('bg-slate-800', 'text-white');
                 document.getElementById('page-title').innerText = "Admin Authentication";
                 renderAdminLogin();
             } else if (viewId === 'admin-dashboard') {
-                adminNav.classList.add('bg-slate-800', 'text-white');
                 document.getElementById('page-title').innerText = "Admin Workspace";
                 renderAdminDashboard();
             } else {
