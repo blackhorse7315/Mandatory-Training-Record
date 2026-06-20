@@ -139,7 +139,7 @@
         let isSidebarOpen = false;
         
         // --- GOOGLE SHEETS API CONFIGURATION ---
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDF0ifmMP1Z3IvwIO4mdscaosfLXFkrc4k01zTcAWEHev_8-IA5IyOQLeRd0__MoN3/exec"; 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzCGkeZbJmO-I2PxGwEYSkitnSJn7USKfv4noicrzEo3scio4Qksbd1PtNfRctaeYv1/exec"; 
         
         let formNoAllData = "F-TWA-OPS-057-01";
         let formNoCategory = "F-TWA-OPS-058-01";
@@ -195,15 +195,17 @@
                         if (!crew.training) crew.training = {};
                         categories.forEach(cat => {
                             if (!crew.training[cat.id]) {
-                                crew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4' };
+                                crew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4', typeRating: '' };
+                            } else {
+                                // Jaring pengaman: Jika typeRating tidak terdefinisi dari backend, set kosong agar tidak jadi tulisan "undefined"
+                                if (typeof crew.training[cat.id].typeRating === 'undefined') {
+                                    crew.training[cat.id].typeRating = '';
+                                }
                             }
                             recalculateStatus(crew, cat.id);
                         });
                         return crew;
                     });
-
-                    // Simpan data terbaru ke Cache Lokal (Local Storage)
-                    localStorage.setItem('ecrew_cached_data', JSON.stringify(mockData));
                 } else if (!isSilent) {
                     mockData = [];
                 }
@@ -221,15 +223,57 @@
         // --- UTILITY FUNCTIONS ---
         function formatDate(dateStr) {
             if (!dateStr || dateStr === '') return '-';
-            const parts = dateStr.split('-');
-            if (parts.length !== 3) return dateStr;
-            return `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert YYYY-MM-DD to DD-MM-YYYY
+            try {
+                // Konversi string ISO (termasuk timezone) menjadi Date object
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr; // Fallback jika bukan format tanggal valid
+                
+                // Ambil tanggal dengan menyesuaikan zona waktu lokal (menghindari selisih hari karena UTC)
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                
+                return `${day}-${month}-${year}`; // Convert ke DD-MM-YYYY
+            } catch(e) {
+                return dateStr;
+            }
+        }
+
+        function formatInputDate(dateStr) {
+            // Fungsi khusus untuk menyesuaikan string ke dalam input type="date" (YYYY-MM-DD)
+            if (!dateStr || dateStr === '') return '';
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr.split('T')[0]; // Fallback potong string "T"
+                
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                
+                return `${year}-${month}-${day}`; 
+            } catch(e) {
+                return dateStr.split('T')[0];
+            }
         }
 
         function recalculateStatus(crew, categoryId) {
             const training = crew.training[categoryId];
+            const isNoExpiryCat = categoryId === 'avsec' || categoryId === 'sms';
+
+            // Penyesuaian pengecekan data kosong untuk kategori tanpa masa kedaluwarsa
+            if (isNoExpiryCat) {
+                if (!training.issueDate || training.issueDate === '') {
+                    training.status = 'No Data';
+                    training.statusColor = 'bg-slate-100 text-slate-800 border border-slate-200';
+                } else {
+                    training.status = 'Valid';
+                    training.statusColor = 'bg-green-100 text-green-800 border border-green-200';
+                }
+                training.daysLeft = 0;
+                return;
+            }
             
-            // Handle if no data yet
+            // Handle if no data yet (kategori dengan masa kedaluwarsa)
             if (!training.expiryDate || training.expiryDate === '') {
                 training.status = 'No Data';
                 training.statusColor = 'bg-slate-100 text-slate-800 border border-slate-200';
@@ -263,16 +307,35 @@
             if (isTableEditMode) {
                 document.body.style.cursor = 'wait';
                 
-                // Ambil hanya data untuk kategori sheet saat ini
-                const payloadData = mockData.map(c => ({
-                    id: c.id,
-                    training: c.training[categoryId]
-                }));
+                const payloadData = mockData.map(c => {
+                    // Salin objek training agar kita bisa mengubah format tanggalnya
+                    // tanpa mengganggu referensi data aslinya
+                    const trainingData = { ...c.training[categoryId] };
+                    
+                    // Bersihkan format tanggal menjadi YYYY-MM-DD sebelum dikirim ke Google Sheets
+                    // Ini mencegah format ISO (2026-02-05T17:00:00.000Z) tersimpan di Sheet
+                    if (trainingData.issueDate) trainingData.issueDate = formatInputDate(trainingData.issueDate);
+                    if (trainingData.expiryDate) trainingData.expiryDate = formatInputDate(trainingData.expiryDate);
+
+                    return {
+                        id: c.id,
+                        name: c.name,
+                        training: trainingData
+                    };
+                });
 
                 const res = await sendDataToGoogleSheets("UPDATE_CATEGORY", { 
                     category: categoryId, 
                     data: payloadData 
                 });
+                
+                // Khusus halaman approval, simpan juga perubahan Name & Rank ke Master Data
+                if (categoryId === 'approval') {
+                    for (const crew of mockData) {
+                        sendDataToGoogleSheets("EDIT_CREW_MASTER", { crew: crew });
+                    }
+                }
+
                 document.body.style.cursor = 'default';
                 
                 if(res.status !== "success") {
@@ -288,78 +351,17 @@
         function updateCrewField(id, categoryId, field, value) {
             const crew = mockData.find(c => c.id === id);
             if (crew) {
-                crew.training[categoryId][field] = value;
-                if (field === 'expiryDate') {
-                    recalculateStatus(crew, categoryId);
+                if (field === 'name' || field === 'rank') {
+                    crew[field] = value;
+                } else {
+                    crew.training[categoryId][field] = value;
+                    if (field === 'expiryDate') {
+                        recalculateStatus(crew, categoryId);
+                    }
                 }
                 const category = categories.find(c => c.id === currentView);
                 if(category) renderTable(category);
             }
-        }
-
-        async function handleFileUpload(inputElem, crewId, categoryId) {
-            const file = inputElem.files[0];
-            if (!file) return;
-            if (file.type !== 'application/pdf') {
-                alert('Silakan upload file berformat PDF.');
-                inputElem.value = '';
-                return;
-            }
-            if (file.size > 5 * 1024 * 1024) { // Batas maksimal 5MB untuk kelancaran API
-                alert('Ukuran file maksimal 5MB.');
-                inputElem.value = '';
-                return;
-            }
-
-            // Tampilkan status uploading
-            const statusElem = document.getElementById(`upload-status-${crewId}`);
-            if(statusElem) {
-                statusElem.innerText = "Uploading ke Drive...";
-                statusElem.className = "text-xs text-blue-600 font-medium mt-1 block animate-pulse";
-            }
-            
-            // Konversi file ke base64 agar bisa dikirim lewat Google Sheets API
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const base64Data = e.target.result.split(',')[1];
-                
-                try {
-                    const res = await sendDataToGoogleSheets("UPLOAD_PDF", {
-                        filename: `Approval_${crewId}.pdf`,
-                        mimeType: file.type,
-                        base64: base64Data
-                    });
-
-                    if (res.status === 'success') {
-                        if(statusElem) {
-                            statusElem.innerText = "Upload sukses!";
-                            statusElem.className = "text-xs text-green-600 font-medium mt-1 block";
-                        }
-                        // Update field fileUrl secara lokal & panggil render ulang
-                        updateCrewField(crewId, categoryId, 'fileUrl', res.fileUrl);
-                    } else {
-                        if(statusElem) {
-                            statusElem.innerText = "Upload gagal.";
-                            statusElem.className = "text-xs text-red-500 font-medium mt-1 block";
-                        }
-                        
-                        // Menangani peringatan khusus jika Apps Script belum diberikan akses Drive
-                        if (res.message && res.message.includes('permission to call DriveApp')) {
-                            alert("SISTEM BELUM DIOTORISASI!\n\nKarena Anda menambahkan fitur upload Drive, Anda perlu memberikan izin pada Google Apps Script Anda.\n\nCara memperbaiki:\n1. Buka Google Apps Script (Backend).\n2. Pilih fungsi 'doGet' atau 'doPost', lalu klik tombol Run/Jalankan.\n3. Klik 'Review Permissions' (Tinjau Izin) -> Lanjutan -> Izinkan.\n4. Lakukan New Deployment ulang.");
-                        } else {
-                            alert("Upload Gagal: " + (res.message || "Terdapat kesalahan koneksi ke server."));
-                        }
-                        console.error("Detail Error:", res.message);
-                    }
-                } catch (err) {
-                    if(statusElem) {
-                        statusElem.innerText = "Error jaringan.";
-                        statusElem.className = "text-xs text-red-500 font-medium mt-1 block";
-                    }
-                    console.error("Fetch Error:", err);
-                }
-            };
-            reader.readAsDataURL(file);
         }
 
         async function duplicateCrewItem(id, categoryId) {
@@ -396,12 +398,15 @@
         // --- UI RENDERERS ---
 
         function renderDashboard() {
+            // Filter data khusus untuk Dashboard: Sembunyikan 'initial-'
+            const dashboardData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
+            
             // Kalkulasi Status untuk Dashboard berdasarkan "Status Terburuk" dari Crew
             let validCount = 0;
             let expiringCount = 0;
             let expiredCount = 0;
 
-            mockData.forEach(crew => {
+            dashboardData.forEach(crew => {
                 let crewStatus = 'Valid';
                 // Loop semua kategori yang ia miliki
                 for (let cat of categories) {
@@ -450,7 +455,7 @@
                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
                         <p class="text-sm font-medium text-slate-500 mb-1">Total Tracked Crew</p>
-                        <p class="text-3xl font-bold text-slate-800">${mockData.length}</p>
+                        <p class="text-3xl font-bold text-slate-800">${dashboardData.length}</p>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
                         <div class="p-4 rounded-full bg-green-50 text-green-600 mb-3">
@@ -513,17 +518,19 @@
             const expiryDateTitle = isNoExpiryCat ? "Date of Conduct" : "Date of Expiry";
 
             const html = `
-                <div class="mb-4">
+                <div class="mb-6">
                     <button onclick="navigate('dashboard')" class="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium transition-colors">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         Back to Dashboard
                     </button>
                 </div>
 
-                <div class="flex flex-col items-center text-center mb-6">
-                    <h3 class="text-2xl md:text-3xl font-bold text-slate-800">${categoryData.name}</h3>
-                    <p class="text-slate-500 text-sm mt-1 mb-4">Manage records and validity for this mandatory item.</p>
-                    <div class="flex gap-3 justify-center">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">${categoryData.name}</h3>
+                        <p class="text-slate-500 text-sm mt-1">Manage records and validity for this mandatory item.</p>
+                    </div>
+                    <div class="flex gap-3">
                         <button onclick="exportCategoryPDF('${categoryData.id}')" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm flex items-center transition-colors">
                             <svg class="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             Export PDF
@@ -532,14 +539,23 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
-                    <div class="overflow-x-auto w-full">
-                        <table class="w-full text-left border-collapse min-w-[800px] whitespace-nowrap">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    ${categoryData.id === 'ppc' ? `
+                    <datalist id="ppc-ratings">
+                        <option value="GIV">
+                        <option value="BE300">
+                        <option value="C212">
+                        <option value="B412">
+                        <option value="AW109">
+                    </datalist>
+                    ` : ''}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-y border-gray-200">
                                     <th class="px-6 py-3 font-medium">Name & Rank</th>
                                     ${categoryData.id === 'english' ? '<th class="px-6 py-3 font-medium">English Level</th>' : ''}
-                                    ${categoryData.id === 'approval' ? '<th class="px-6 py-3 font-medium">Document PDF</th>' : ''}
+                                    ${categoryData.id === 'ppc' ? '<th class="px-6 py-3 font-medium">Type Rating</th>' : ''}
                                     ${!isNoExpiryCat ? `<th class="px-6 py-3 font-medium">${lastDateTitle}</th>` : ''}
                                     <th class="px-6 py-3 font-medium">${expiryDateTitle}</th>
                                     <th class="px-6 py-3 font-medium">Status</th>
@@ -548,14 +564,23 @@
                             </thead>
                             <tbody class="divide-y divide-gray-100 text-sm">
                                 ${(()=>{
-                                    let tableData = mockData;
+                                    let tableData = [];
                                     if (categoryData.id === 'approval') {
                                         tableData = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-'));
+                                    } else {
+                                        tableData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
                                     }
+
+                                    // FILTER: Sembunyikan crew jika tidak ada datanya (No Data) di Sheet
+                                    // Pengecualian: Munculkan semua ketika mode edit aktif agar dapat ditambah
+                                    if (!isTableEditMode) {
+                                        tableData = tableData.filter(crew => crew.training[categoryData.id].status !== 'No Data');
+                                    }
+
                                     return tableData.map(crew => {
                                         const trainingData = crew.training[categoryData.id];
-                                        const displayStatus = isNoExpiryCat ? 'Current' : trainingData.status;
-                                        const displayStatusColor = isNoExpiryCat ? 'bg-green-100 text-green-800 border border-green-200' : trainingData.statusColor;
+                                        const displayStatus = isNoExpiryCat && trainingData.status !== 'No Data' ? 'Current' : trainingData.status;
+                                        const displayStatusColor = isNoExpiryCat && trainingData.status !== 'No Data' ? 'bg-green-100 text-green-800 border border-green-200' : trainingData.statusColor;
 
                                         return `
                                         <tr class="hover:bg-slate-50 transition-colors group">
@@ -587,73 +612,199 @@
                                                     ${isTableEditMode 
                                                         ? `<select onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'englishLevel', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
                                                             <option value="Level 4" ${trainingData.englishLevel === 'Level 4' ? 'selected' : ''}>Level 4</option>
+                                                            <option value="Level 5" ${trainingData.englishLevel === 'Level 5' ? 'selected' : ''}>Level 5</option>
                                                             <option value="Level 6" ${trainingData.englishLevel === 'Level 6' ? 'selected' : ''}>Level 6</option>
                                                            </select>` 
                                                         : `<span class="font-medium text-slate-700">${trainingData.englishLevel || '-'}</span>`}
                                                 </td>
                                             ` : ''}
-
-                                            ${categoryData.id === 'approval' ? `
+                                            
+                                            ${categoryData.id === 'ppc' ? `
                                                 <td class="px-6 py-4">
                                                     ${isTableEditMode 
-                                                        ? `<div class="flex flex-col gap-1 w-48">
-                                                              ${trainingData.fileUrl ? `<a href="${trainingData.fileUrl}" target="_blank" class="text-xs text-blue-600 hover:underline mb-1">Lihat PDF Saat Ini</a>` : ''}
-                                                              <input type="file" accept=".pdf" onchange="handleFileUpload(this, '${crew.id}', '${categoryData.id}')" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
-                                                              <span id="upload-status-${crew.id}"></span>
-                                                           </div>`
-                                                        : (trainingData.fileUrl 
-                                                            ? `<a href="${trainingData.fileUrl}" target="_blank" class="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 px-2.5 py-1.5 rounded-md transition-colors"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>View PDF</a>`
-                                                            : `<span class="text-xs text-slate-400 italic">Belum ada file</span>`)
-                                                    }
+                                                        ? `<input list="ppc-ratings" value="${trainingData.typeRating || ''}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'typeRating', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 w-28 bg-white" placeholder="Select/Type">` 
+                                                        : `<span class="font-medium text-slate-700">${trainingData.typeRating || '-'}</span>`}
                                                 </td>
                                             ` : ''}
 
                                             ${!isNoExpiryCat ? `
-                                                <td class="px-6 py-4 text-slate-600">
-                                                    ${isTableEditMode
-                                                        ? `<input type="date" value="${trainingData.issueDate}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
-                                                        : formatDate(trainingData.issueDate)
+                                                <td class="px-6 py-4">
+                                                    ${isTableEditMode 
+                                                        ? `<input type="date" value="${formatInputDate(trainingData.issueDate)}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">`
+                                                        : `<span class="text-slate-700">${formatDate(trainingData.issueDate)}</span>`
                                                     }
                                                 </td>
                                             ` : ''}
 
-                                            <td class="px-6 py-4 text-slate-800 font-medium">
+                                            <td class="px-6 py-4">
                                                 ${isTableEditMode
-                                                    ? `<input type="date" value="${isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
-                                                    : formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)
+                                                    ? `<input type="date" value="${formatInputDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">`
+                                                    : `<span class="text-slate-700">${formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)}</span>`
                                                 }
                                             </td>
 
                                             <td class="px-6 py-4">
-                                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${displayStatusColor}">
+                                                <span class="px-2.5 py-1 rounded-full text-xs font-medium border ${displayStatusColor}">
                                                     ${displayStatus}
                                                 </span>
                                             </td>
 
                                             ${isTableEditMode ? `
                                                 <td class="px-6 py-4 text-right">
-                                                    <button onclick="duplicateCrewItem('${crew.id}', '${categoryData.id}')" class="text-green-600 hover:text-green-800 mr-3 text-xs font-medium transition-colors">Duplicate</button>
-                                                    <button onclick="deleteCrewItem('${crew.id}', '${categoryData.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                                    <button onclick="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', ''); updateCrewField('${crew.id}', '${categoryData.id}', 'expiryDate', '');" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors" title="Hapus Tanggal">Clear</button>
                                                 </td>
                                             ` : ''}
-                                        </tr>
-                                        `;
+                                    </tr>
+                                    `;
                                     }).join('');
                                 })()}
                             </tbody>
                         </table>
                     </div>
                     ${(()=>{
-                        let tableDataLen = mockData.length;
+                        let tableData = [];
                         if (categoryData.id === 'approval') {
-                            tableDataLen = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-')).length;
+                            tableData = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-'));
+                        } else {
+                            tableData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
                         }
+                        
+                        // Hitung ulang total entri yang tampil sesuai filter
+                        if (!isTableEditMode) {
+                            tableData = tableData.filter(crew => crew.training[categoryData.id].status !== 'No Data');
+                        }
+                        
+                        let tableDataLen = tableData.length;
+
                         return `
                         <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
                             <span class="text-sm text-gray-500">Showing <span class="font-medium text-gray-700">${tableDataLen > 0 ? 1 : 0}</span> to <span class="font-medium text-gray-700">${tableDataLen}</span> of <span class="font-medium text-gray-700">${tableDataLen}</span> entries</span>
                         </div>
                         `;
                     })()}
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        // --- ADMIN PAGES ---
+        
+        function renderAdminLogin() {
+            const html = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
+                        <div class="text-center mb-8">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-800 mb-4">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-slate-800">Admin Authentication</h2>
+                            <p class="text-sm text-slate-500 mt-1">Please log in to manage crew data.</p>
+                        </div>
+                        <form onsubmit="handleLoginSubmit(event)">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                                <input type="text" id="login-username" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Enter username">
+                            </div>
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                                <input type="password" id="login-password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
+                            </div>
+                            <div id="login-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
+                                Invalid username or password.
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 text-white font-medium py-2.5 rounded-lg hover:bg-slate-800 transition-colors">
+                                Log In to Admin Panel
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function renderAdminDashboard() {
+            const html = `
+                <div class="mb-6 flex justify-between items-start">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">Admin Panel: Workspace</h3>
+                        <p class="text-slate-500 text-sm mt-1">Manage PDF Form Numbers and Crew records.</p>
+                    </div>
+                    <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        Logout
+                    </button>
+                </div>
+
+                <!-- Add/Edit Form -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                    <h4 class="font-semibold text-slate-800 mb-4 border-b pb-2 flex items-center" id="form-title">
+                        <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                        Tambah Data Identitas Pilot / Crew
+                    </h4>
+                    <form onsubmit="handleCrewSubmit(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
+                            <input type="text" id="crew-name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Full Name">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Rank</label>
+                            <select id="crew-rank" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                <option value="" disabled selected>Select Rank</option>
+                                <option value="Captain">Captain</option>
+                                <option value="First Officer">First Officer</option>
+                                <option value="Cabin Service">Cabin Service</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">License No.</label>
+                            <input type="text" id="crew-license" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. LIC-12345">
+                        </div>
+                        <div class="md:col-span-1 flex gap-2">
+                            <button type="submit" id="submit-btn" class="flex-1 bg-blue-600 text-white text-sm font-medium py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm">
+                                Save Data
+                            </button>
+                            <button type="button" onclick="resetForm()" class="px-3 bg-gray-100 text-gray-600 text-sm font-medium py-2 rounded-md hover:bg-gray-200 transition-colors border border-gray-200 hidden" id="cancel-btn">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Crew List Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                        <h4 class="font-semibold text-slate-800">Daftar Master Data Crew</h4>
+                        <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-medium">Total: ${mockData.length} Records</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white text-xs text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                    <th class="px-6 py-3 font-medium">ID</th>
+                                    <th class="px-6 py-3 font-medium">Name</th>
+                                    <th class="px-6 py-3 font-medium">Rank</th>
+                                    <th class="px-6 py-3 font-medium">License No.</th>
+                                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-sm">
+                                ${mockData.map(crew => `
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-500">${crew.id}</td>
+                                        <td class="px-6 py-3 font-medium text-slate-800">${crew.name}</td>
+                                        <td class="px-6 py-3">
+                                            <span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">${crew.rank}</span>
+                                        </td>
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">${crew.licenseNo || '-'}</td>
+                                        <td class="px-6 py-3 text-right">
+                                            <button onclick="prepareEdit('${crew.id}')" class="text-blue-500 hover:text-blue-700 mr-3 text-xs font-medium transition-colors">Edit</button>
+                                            <button onclick="deleteCrew('${crew.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             `;
             document.getElementById('main-content').innerHTML = html;
@@ -723,7 +874,7 @@
                     
                     // Inisialisasi training kosong agar status bisa dikalkulasi
                     categories.forEach(cat => {
-                        newCrew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4' };
+                        newCrew.training[cat.id] = { issueDate: '', expiryDate: '', englishLevel: 'Level 4', typeRating: '' };
                         recalculateStatus(newCrew, cat.id);
                     });
 
@@ -828,11 +979,13 @@
                 doc.setFont("helvetica", "normal");
                 doc.text(`Form no: ${formNoAllData}`, 40, 80);
 
+                const dashboardData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
+
                 let validCount = 0;
                 let expiringCount = 0;
                 let expiredCount = 0;
 
-                mockData.forEach(crew => {
+                dashboardData.forEach(crew => {
                     let crewStatus = 'Valid';
                     for (let cat of categories) {
                         const s = crew.training[cat.id].status;
@@ -848,7 +1001,7 @@
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(10);
                 
-                doc.text(`Total Tracked Crew: ${mockData.length}`, 40, 130);
+                doc.text(`Total Tracked Crew: ${dashboardData.length}`, 40, 130);
                 doc.text(`Fully Compliant: ${validCount}`, 40, 145);
                 doc.text(`Expiring <= 60 Days: ${expiringCount}`, 250, 130);
                 doc.text(`Critical / Expired: ${expiredCount}`, 250, 145);
@@ -893,21 +1046,34 @@
 
                     let headRow = ['No', 'Rank, Name & License No.'];
                     if (cat.id === 'english') headRow.push('English Level');
+                    if (cat.id === 'ppc') headRow.push('Type Rating');
                     if (!isNoExpiryCat) headRow.push(lastDateTitle);
                     headRow.push(expiryDateTitle);
                     headRow.push('Status');
 
+                    let tableData = [];
+                    if (cat.id === 'approval') {
+                        tableData = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-'));
+                    } else {
+                        tableData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
+                    }
+
+                    // Hanya cetak ke PDF jika ada datanya
+                    tableData = tableData.filter(crew => crew.training[cat.id].status !== 'No Data');
+
                     const head = [headRow];
-                    const body = mockData.map((crew, idx) => {
+                    const body = tableData.map((crew, idx) => {
                         const license = crew.licenseNo ? crew.licenseNo : '-';
-                        const formattedName = `${crew.rank} ${crew.name} ${license}`;
+                        let formattedName = `${crew.rank} ${crew.name} ${license}`;
+                        
                         const training = crew.training[cat.id];
 
                         let row = [idx + 1, formattedName];
                         if (cat.id === 'english') row.push(training.englishLevel || '-');
+                        if (cat.id === 'ppc') row.push(training.typeRating || '-');
                         if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
                         row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
-                        row.push(isNoExpiryCat ? 'Current' : (training.status || '-'));
+                        row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
                         return row;
                     });
 
@@ -1005,21 +1171,34 @@
 
                 let headRow = ['No', 'Rank, Name & License No.'];
                 if (categoryId === 'english') headRow.push('English Level');
+                if (categoryId === 'ppc') headRow.push('Type Rating');
                 if (!isNoExpiryCat) headRow.push(lastDateTitle);
                 headRow.push(expiryDateTitle);
                 headRow.push('Status');
 
+                let tableData = [];
+                if (categoryId === 'approval') {
+                    tableData = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-'));
+                } else {
+                    tableData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
+                }
+
+                // Hanya cetak ke PDF jika ada datanya
+                tableData = tableData.filter(crew => crew.training[categoryId].status !== 'No Data');
+
                 const head = [headRow];
-                const body = mockData.map((crew, idx) => {
+                const body = tableData.map((crew, idx) => {
                     const license = crew.licenseNo ? crew.licenseNo : '-';
-                    const formattedName = `${crew.rank} ${crew.name} ${license}`;
+                    let formattedName = `${crew.rank} ${crew.name} ${license}`;
+                    
                     const training = crew.training[categoryId];
 
                     let row = [idx + 1, formattedName];
                     if (categoryId === 'english') row.push(training.englishLevel || '-');
+                    if (categoryId === 'ppc') row.push(training.typeRating || '-');
                     if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
                     row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
-                    row.push(isNoExpiryCat ? 'Current' : (training.status || '-'));
+                    row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
                     return row;
                 });
 
@@ -1112,23 +1291,8 @@
         }
 
         function initApp() {
-            // Cek apakah ada data cache tersimpan
-            const cachedData = localStorage.getItem('ecrew_cached_data');
-            
-            if (cachedData) {
-                try {
-                    mockData = JSON.parse(cachedData);
-                    // Render instan dengan data cache
-                    navigate('dashboard');
-                    // Fetch data terbaru secara diam-diam di latar belakang
-                    syncData(true);
-                } catch (e) {
-                    syncData(false);
-                }
-            } else {
-                // Fetch data normal jika pertama kali buka (belum ada cache)
-                syncData(false);
-            }
+            // Selalu ambil data terbaru langsung dari Google Sheets
+            syncData(false);
         }
 
         initApp();
