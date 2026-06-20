@@ -540,8 +540,8 @@
                 </div>
 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    ${categoryData.id === 'ppc' ? `
-                    <datalist id="ppc-ratings">
+                    ${['ppc', 'loa', 'company_check'].includes(categoryData.id) ? `
+                    <datalist id="type-ratings">
                         <option value="GIV">
                         <option value="BE300">
                         <option value="C212">
@@ -555,7 +555,7 @@
                                 <tr class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-y border-gray-200">
                                     <th class="px-6 py-3 font-medium">Name & Rank</th>
                                     ${categoryData.id === 'english' ? '<th class="px-6 py-3 font-medium">English Level</th>' : ''}
-                                    ${categoryData.id === 'ppc' ? '<th class="px-6 py-3 font-medium">Type Rating</th>' : ''}
+                                    ${['ppc', 'loa', 'company_check'].includes(categoryData.id) ? '<th class="px-6 py-3 font-medium">Type Rating</th>' : ''}
                                     ${!isNoExpiryCat ? `<th class="px-6 py-3 font-medium">${lastDateTitle}</th>` : ''}
                                     <th class="px-6 py-3 font-medium">${expiryDateTitle}</th>
                                     <th class="px-6 py-3 font-medium">Status</th>
@@ -619,10 +619,10 @@
                                                 </td>
                                             ` : ''}
                                             
-                                            ${categoryData.id === 'ppc' ? `
+                                            ${['ppc', 'loa', 'company_check'].includes(categoryData.id) ? `
                                                 <td class="px-6 py-4">
                                                     ${isTableEditMode 
-                                                        ? `<input list="ppc-ratings" value="${trainingData.typeRating || ''}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'typeRating', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 w-28 bg-white" placeholder="Select/Type">` 
+                                                        ? `<input list="type-ratings" value="${trainingData.typeRating || ''}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'typeRating', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 w-28 bg-white" placeholder="Select/Type">` 
                                                         : `<span class="font-medium text-slate-700">${trainingData.typeRating || '-'}</span>`}
                                                 </td>
                                             ` : ''}
@@ -1046,7 +1046,7 @@
 
                     let headRow = ['No', 'Rank, Name & License No.'];
                     if (cat.id === 'english') headRow.push('English Level');
-                    if (cat.id === 'ppc') headRow.push('Type Rating');
+                    if (['ppc', 'loa', 'company_check'].includes(cat.id)) headRow.push('Type Rating');
                     if (!isNoExpiryCat) headRow.push(lastDateTitle);
                     headRow.push(expiryDateTitle);
                     headRow.push('Status');
@@ -1070,7 +1070,7 @@
 
                         let row = [idx + 1, formattedName];
                         if (cat.id === 'english') row.push(training.englishLevel || '-');
-                        if (cat.id === 'ppc') row.push(training.typeRating || '-');
+                        if (['ppc', 'loa', 'company_check'].includes(cat.id)) row.push(training.typeRating || '-');
                         if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
                         row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
                         row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
@@ -1171,7 +1171,7 @@
 
                 let headRow = ['No', 'Rank, Name & License No.'];
                 if (categoryId === 'english') headRow.push('English Level');
-                if (categoryId === 'ppc') headRow.push('Type Rating');
+                if (['ppc', 'loa', 'company_check'].includes(categoryId)) headRow.push('Type Rating');
                 if (!isNoExpiryCat) headRow.push(lastDateTitle);
                 headRow.push(expiryDateTitle);
                 headRow.push('Status');
@@ -1195,7 +1195,7 @@
 
                     let row = [idx + 1, formattedName];
                     if (categoryId === 'english') row.push(training.englishLevel || '-');
-                    if (categoryId === 'ppc') row.push(training.typeRating || '-');
+                    if (['ppc', 'loa', 'company_check'].includes(categoryId)) row.push(training.typeRating || '-');
                     if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
                     row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
                     row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
