@@ -139,7 +139,7 @@
         let isSidebarOpen = false;
         
         // --- GOOGLE SHEETS API CONFIGURATION ---
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiBVxStx7mi9L0VlVOsn4_bxECrXz6pXKXLCdlFP-NVxtkhFR1x64KmIwmRmo_CoGo/exec"; 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDF0ifmMP1Z3IvwIO4mdscaosfLXFkrc4k01zTcAWEHev_8-IA5IyOQLeRd0__MoN3/exec"; 
         
         let formNoAllData = "F-TWA-OPS-057-01";
         let formNoCategory = "F-TWA-OPS-058-01";
@@ -297,6 +297,71 @@
             }
         }
 
+        async function handleFileUpload(inputElem, crewId, categoryId) {
+            const file = inputElem.files[0];
+            if (!file) return;
+            if (file.type !== 'application/pdf') {
+                alert('Silakan upload file berformat PDF.');
+                inputElem.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) { // Batas maksimal 5MB untuk kelancaran API
+                alert('Ukuran file maksimal 5MB.');
+                inputElem.value = '';
+                return;
+            }
+
+            // Tampilkan status uploading
+            const statusElem = document.getElementById(`upload-status-${crewId}`);
+            if(statusElem) {
+                statusElem.innerText = "Uploading ke Drive...";
+                statusElem.className = "text-xs text-blue-600 font-medium mt-1 block animate-pulse";
+            }
+            
+            // Konversi file ke base64 agar bisa dikirim lewat Google Sheets API
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                
+                try {
+                    const res = await sendDataToGoogleSheets("UPLOAD_PDF", {
+                        filename: `Approval_${crewId}.pdf`,
+                        mimeType: file.type,
+                        base64: base64Data
+                    });
+
+                    if (res.status === 'success') {
+                        if(statusElem) {
+                            statusElem.innerText = "Upload sukses!";
+                            statusElem.className = "text-xs text-green-600 font-medium mt-1 block";
+                        }
+                        // Update field fileUrl secara lokal & panggil render ulang
+                        updateCrewField(crewId, categoryId, 'fileUrl', res.fileUrl);
+                    } else {
+                        if(statusElem) {
+                            statusElem.innerText = "Upload gagal.";
+                            statusElem.className = "text-xs text-red-500 font-medium mt-1 block";
+                        }
+                        
+                        // Menangani peringatan khusus jika Apps Script belum diberikan akses Drive
+                        if (res.message && res.message.includes('permission to call DriveApp')) {
+                            alert("SISTEM BELUM DIOTORISASI!\n\nKarena Anda menambahkan fitur upload Drive, Anda perlu memberikan izin pada Google Apps Script Anda.\n\nCara memperbaiki:\n1. Buka Google Apps Script (Backend).\n2. Pilih fungsi 'doGet' atau 'doPost', lalu klik tombol Run/Jalankan.\n3. Klik 'Review Permissions' (Tinjau Izin) -> Lanjutan -> Izinkan.\n4. Lakukan New Deployment ulang.");
+                        } else {
+                            alert("Upload Gagal: " + (res.message || "Terdapat kesalahan koneksi ke server."));
+                        }
+                        console.error("Detail Error:", res.message);
+                    }
+                } catch (err) {
+                    if(statusElem) {
+                        statusElem.innerText = "Error jaringan.";
+                        statusElem.className = "text-xs text-red-500 font-medium mt-1 block";
+                    }
+                    console.error("Fetch Error:", err);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
         async function duplicateCrewItem(id, categoryId) {
             const crew = mockData.find(c => c.id === id);
             if(crew) {
@@ -428,7 +493,7 @@
                     Done Editing
                 </button>`
                 : `<button onclick="toggleTableEditMode('${categoryData.id}')" class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-blue-700 shadow-sm flex items-center transition-colors">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Update Record
                 </button>`;
 
@@ -474,6 +539,7 @@
                                 <tr class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-y border-gray-200">
                                     <th class="px-6 py-3 font-medium">Name & Rank</th>
                                     ${categoryData.id === 'english' ? '<th class="px-6 py-3 font-medium">English Level</th>' : ''}
+                                    ${categoryData.id === 'approval' ? '<th class="px-6 py-3 font-medium">Document PDF</th>' : ''}
                                     ${!isNoExpiryCat ? `<th class="px-6 py-3 font-medium">${lastDateTitle}</th>` : ''}
                                     <th class="px-6 py-3 font-medium">${expiryDateTitle}</th>
                                     <th class="px-6 py-3 font-medium">Status</th>
@@ -481,193 +547,113 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 text-sm">
-                                ${mockData.map(crew => {
-                                    const trainingData = crew.training[categoryData.id];
-                                    const displayStatus = isNoExpiryCat ? 'Current' : trainingData.status;
-                                    const displayStatusColor = isNoExpiryCat ? 'bg-green-100 text-green-800 border border-green-200' : trainingData.statusColor;
+                                ${(()=>{
+                                    let tableData = mockData;
+                                    if (categoryData.id === 'approval') {
+                                        tableData = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-'));
+                                    }
+                                    return tableData.map(crew => {
+                                        const trainingData = crew.training[categoryData.id];
+                                        const displayStatus = isNoExpiryCat ? 'Current' : trainingData.status;
+                                        const displayStatusColor = isNoExpiryCat ? 'bg-green-100 text-green-800 border border-green-200' : trainingData.statusColor;
 
-                                    return `
-                                    <tr class="hover:bg-slate-50 transition-colors group">
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center">
-                                                <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs mr-3">
-                                                    ${crew.name.split(' ').map(n=>n[0]).join('').substring(0,2)}
-                                                </div>
-                                                <div>
-                                                    <div class="font-medium text-slate-800">${crew.name}</div>
-                                                    <div class="text-xs text-slate-500">${crew.id} • ${crew.rank}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        
-                                        ${categoryData.id === 'english' ? `
+                                        return `
+                                        <tr class="hover:bg-slate-50 transition-colors group">
                                             <td class="px-6 py-4">
-                                                ${isTableEditMode 
-                                                    ? `<select onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'englishLevel', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                                        <option value="Level 4" ${trainingData.englishLevel === 'Level 4' ? 'selected' : ''}>Level 4</option>
-                                                        <option value="Level 6" ${trainingData.englishLevel === 'Level 6' ? 'selected' : ''}>Level 6</option>
-                                                       </select>` 
-                                                    : `<span class="font-medium text-slate-700">${trainingData.englishLevel || '-'}</span>`}
+                                                ${categoryData.id === 'approval' && isTableEditMode ? `
+                                                    <div class="flex flex-col gap-2">
+                                                        <input type="text" value="${crew.name}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'name', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 w-full" placeholder="Crew Name">
+                                                        <select onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'rank', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 w-full bg-white">
+                                                            <option value="Captain" ${crew.rank === 'Captain' ? 'selected' : ''}>Captain</option>
+                                                            <option value="First Officer" ${crew.rank === 'First Officer' ? 'selected' : ''}>First Officer</option>
+                                                            <option value="Cabin Service" ${crew.rank === 'Cabin Service' ? 'selected' : ''}>Cabin Service</option>
+                                                        </select>
+                                                    </div>
+                                                ` : `
+                                                    <div class="flex items-center">
+                                                        <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs mr-3">
+                                                            ${crew.name ? crew.name.split(' ').map(n=>n[0]).join('').substring(0,2) : ''}
+                                                        </div>
+                                                        <div>
+                                                            <div class="font-medium text-slate-800">${crew.name}</div>
+                                                            <div class="text-xs text-slate-500">${crew.id} • ${crew.rank}</div>
+                                                        </div>
+                                                    </div>
+                                                `}
                                             </td>
-                                        ` : ''}
+                                            
+                                            ${categoryData.id === 'english' ? `
+                                                <td class="px-6 py-4">
+                                                    ${isTableEditMode 
+                                                        ? `<select onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'englishLevel', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                                            <option value="Level 4" ${trainingData.englishLevel === 'Level 4' ? 'selected' : ''}>Level 4</option>
+                                                            <option value="Level 6" ${trainingData.englishLevel === 'Level 6' ? 'selected' : ''}>Level 6</option>
+                                                           </select>` 
+                                                        : `<span class="font-medium text-slate-700">${trainingData.englishLevel || '-'}</span>`}
+                                                </td>
+                                            ` : ''}
 
-                                        ${!isNoExpiryCat ? `
-                                            <td class="px-6 py-4 text-slate-600">
+                                            ${categoryData.id === 'approval' ? `
+                                                <td class="px-6 py-4">
+                                                    ${isTableEditMode 
+                                                        ? `<div class="flex flex-col gap-1 w-48">
+                                                              ${trainingData.fileUrl ? `<a href="${trainingData.fileUrl}" target="_blank" class="text-xs text-blue-600 hover:underline mb-1">Lihat PDF Saat Ini</a>` : ''}
+                                                              <input type="file" accept=".pdf" onchange="handleFileUpload(this, '${crew.id}', '${categoryData.id}')" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                                                              <span id="upload-status-${crew.id}"></span>
+                                                           </div>`
+                                                        : (trainingData.fileUrl 
+                                                            ? `<a href="${trainingData.fileUrl}" target="_blank" class="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 px-2.5 py-1.5 rounded-md transition-colors"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>View PDF</a>`
+                                                            : `<span class="text-xs text-slate-400 italic">Belum ada file</span>`)
+                                                    }
+                                                </td>
+                                            ` : ''}
+
+                                            ${!isNoExpiryCat ? `
+                                                <td class="px-6 py-4 text-slate-600">
+                                                    ${isTableEditMode
+                                                        ? `<input type="date" value="${trainingData.issueDate}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
+                                                        : formatDate(trainingData.issueDate)
+                                                    }
+                                                </td>
+                                            ` : ''}
+
+                                            <td class="px-6 py-4 text-slate-800 font-medium">
                                                 ${isTableEditMode
-                                                    ? `<input type="date" value="${trainingData.issueDate || ''}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', 'issueDate', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
-                                                    : formatDate(trainingData.issueDate)
+                                                    ? `<input type="date" value="${isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
+                                                    : formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)
                                                 }
                                             </td>
-                                        ` : ''}
 
-                                        <td class="px-6 py-4 text-slate-800 font-medium">
-                                            ${isTableEditMode
-                                                ? `<input type="date" value="${isNoExpiryCat ? (trainingData.issueDate || '') : (trainingData.expiryDate || '')}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">`
-                                                : formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)
-                                            }
-                                        </td>
-
-                                        <td class="px-6 py-4">
-                                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${displayStatusColor}">
-                                                ${displayStatus}
-                                            </span>
-                                        </td>
-
-                                        ${isTableEditMode ? `
-                                            <td class="px-6 py-4 text-right">
-                                                <button onclick="duplicateCrewItem('${crew.id}', '${categoryData.id}')" class="text-green-600 hover:text-green-800 mr-3 text-xs font-medium transition-colors">Duplicate</button>
-                                                <button onclick="deleteCrewItem('${crew.id}', '${categoryData.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                            <td class="px-6 py-4">
+                                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${displayStatusColor}">
+                                                    ${displayStatus}
+                                                </span>
                                             </td>
-                                        ` : ''}
-                                    </tr>
-                                    `;
-                                }).join('')}
+
+                                            ${isTableEditMode ? `
+                                                <td class="px-6 py-4 text-right">
+                                                    <button onclick="duplicateCrewItem('${crew.id}', '${categoryData.id}')" class="text-green-600 hover:text-green-800 mr-3 text-xs font-medium transition-colors">Duplicate</button>
+                                                    <button onclick="deleteCrewItem('${crew.id}', '${categoryData.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
+                                                </td>
+                                            ` : ''}
+                                        </tr>
+                                        `;
+                                    }).join('');
+                                })()}
                             </tbody>
                         </table>
                     </div>
-                </div>
-            `;
-            document.getElementById('main-content').innerHTML = html;
-        }
-
-        // --- ADMIN PAGES ---
-        
-        function renderAdminLogin() {
-            const html = `
-                <div class="flex items-center justify-center h-full">
-                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
-                        <div class="text-center mb-8">
-                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-800 mb-4">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                            </div>
-                            <h2 class="text-2xl font-bold text-slate-800">Admin Authentication</h2>
-                            <p class="text-sm text-slate-500 mt-1">Please log in to manage crew data.</p>
+                    ${(()=>{
+                        let tableDataLen = mockData.length;
+                        if (categoryData.id === 'approval') {
+                            tableDataLen = mockData.filter(crew => crew.id.toLowerCase().startsWith('initial-')).length;
+                        }
+                        return `
+                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                            <span class="text-sm text-gray-500">Showing <span class="font-medium text-gray-700">${tableDataLen > 0 ? 1 : 0}</span> to <span class="font-medium text-gray-700">${tableDataLen}</span> of <span class="font-medium text-gray-700">${tableDataLen}</span> entries</span>
                         </div>
-                        <form onsubmit="handleLoginSubmit(event)">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
-                                <input type="text" id="login-username" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Enter username">
-                            </div>
-                            <div class="mb-6">
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                                <input type="password" id="login-password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
-                            </div>
-                            <div id="login-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-                                Invalid username or password.
-                            </div>
-                            <button type="submit" class="w-full bg-slate-900 text-white font-medium py-2.5 rounded-lg hover:bg-slate-800 transition-colors">
-                                Log In to Admin Panel
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            `;
-            document.getElementById('main-content').innerHTML = html;
-        }
-
-        function renderAdminDashboard() {
-            const html = `
-                <div class="mb-6 flex justify-between items-start">
-                    <div>
-                        <h3 class="text-2xl font-bold text-slate-800">Admin Panel: Workspace</h3>
-                        <p class="text-slate-500 text-sm mt-1">Manage PDF Form Numbers and Crew records.</p>
-                    </div>
-                    <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                        Logout
-                    </button>
-                </div>
-
-                <!-- Add/Edit Form -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                    <h4 class="font-semibold text-slate-800 mb-4 border-b pb-2 flex items-center" id="form-title">
-                        <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
-                        Tambah Data Identitas Pilot / Crew
-                    </h4>
-                    <form onsubmit="handleCrewSubmit(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div class="md:col-span-1">
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
-                            <input type="text" id="crew-name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Full Name">
-                        </div>
-                        <div class="md:col-span-1">
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Rank</label>
-                            <select id="crew-rank" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                <option value="" disabled selected>Select Rank</option>
-                                <option value="Captain">Captain</option>
-                                <option value="First Officer">First Officer</option>
-                                <option value="Cabin Service">Cabin Service</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-1">
-                            <label class="block text-xs font-medium text-slate-600 mb-1">License No.</label>
-                            <input type="text" id="crew-license" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. LIC-12345">
-                        </div>
-                        <div class="md:col-span-1 flex gap-2">
-                            <button type="submit" id="submit-btn" class="flex-1 bg-blue-600 text-white text-sm font-medium py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm">
-                                Save Data
-                            </button>
-                            <button type="button" onclick="resetForm()" class="px-3 bg-gray-100 text-gray-600 text-sm font-medium py-2 rounded-md hover:bg-gray-200 transition-colors border border-gray-200 hidden" id="cancel-btn">
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Crew List Table -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                        <h4 class="font-semibold text-slate-800">Daftar Master Data Crew</h4>
-                        <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-medium">Total: ${mockData.length} Records</span>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-white text-xs text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                                    <th class="px-6 py-3 font-medium">ID</th>
-                                    <th class="px-6 py-3 font-medium">Name</th>
-                                    <th class="px-6 py-3 font-medium">Rank</th>
-                                    <th class="px-6 py-3 font-medium">License No.</th>
-                                    <th class="px-6 py-3 font-medium text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 text-sm">
-                                ${mockData.map(crew => `
-                                    <tr class="hover:bg-slate-50 transition-colors">
-                                        <td class="px-6 py-3 font-mono text-xs text-slate-500">${crew.id}</td>
-                                        <td class="px-6 py-3 font-medium text-slate-800">${crew.name}</td>
-                                        <td class="px-6 py-3">
-                                            <span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">${crew.rank}</span>
-                                        </td>
-                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">${crew.licenseNo || '-'}</td>
-                                        <td class="px-6 py-3 text-right">
-                                            <button onclick="prepareEdit('${crew.id}')" class="text-blue-500 hover:text-blue-700 mr-3 text-xs font-medium transition-colors">Edit</button>
-                                            <button onclick="deleteCrew('${crew.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium transition-colors">Delete</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                        `;
+                    })()}
                 </div>
             `;
             document.getElementById('main-content').innerHTML = html;
