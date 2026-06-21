@@ -262,7 +262,9 @@
 
             // Penyesuaian pengecekan data kosong untuk kategori tanpa masa kedaluwarsa
             if (isNoExpiryCat) {
-                if (!training.issueDate || training.issueDate === '') {
+                // Karena data di sheet mungkin berada di kolom IssueDate atau ExpiryDate, kita cek keduanya
+                const recordedDate = training.issueDate || training.expiryDate;
+                if (!recordedDate || recordedDate === '') {
                     training.status = 'No Data';
                     training.statusColor = 'bg-slate-100 text-slate-800 border border-slate-200';
                 } else {
@@ -638,8 +640,8 @@
 
                                             <td class="px-6 py-4">
                                                 ${isTableEditMode
-                                                    ? `<input type="date" value="${formatInputDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">`
-                                                    : `<span class="text-slate-700">${formatDate(isNoExpiryCat ? trainingData.issueDate : trainingData.expiryDate)}</span>`
+                                                    ? `<input type="date" value="${formatInputDate(isNoExpiryCat ? (trainingData.issueDate || trainingData.expiryDate) : trainingData.expiryDate)}" onchange="updateCrewField('${crew.id}', '${categoryData.id}', '${isNoExpiryCat ? 'issueDate' : 'expiryDate'}', this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white">`
+                                                    : `<span class="text-slate-700">${formatDate(isNoExpiryCat ? (trainingData.issueDate || trainingData.expiryDate) : trainingData.expiryDate)}</span>`
                                                 }
                                             </td>
 
@@ -1072,7 +1074,7 @@
                         if (cat.id === 'english') row.push(training.englishLevel || '-');
                         if (['ppc', 'loa', 'company_check'].includes(cat.id)) row.push(training.typeRating || '-');
                         if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
-                        row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
+                        row.push(formatDate(isNoExpiryCat ? (training.issueDate || training.expiryDate) : training.expiryDate));
                         row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
                         return row;
                     });
@@ -1197,7 +1199,7 @@
                     if (categoryId === 'english') row.push(training.englishLevel || '-');
                     if (['ppc', 'loa', 'company_check'].includes(categoryId)) row.push(training.typeRating || '-');
                     if (!isNoExpiryCat) row.push(formatDate(training.issueDate));
-                    row.push(formatDate(isNoExpiryCat ? training.issueDate : training.expiryDate));
+                    row.push(formatDate(isNoExpiryCat ? (training.issueDate || training.expiryDate) : training.expiryDate));
                     row.push(isNoExpiryCat && training.status !== 'No Data' ? 'Current' : (training.status || '-'));
                     return row;
                 });
