@@ -1112,7 +1112,9 @@
                 doc.save(`Ecrew_Full_Mandatory_Report_${today.replace(/\//g, '-')}.pdf`);
             };
 
-            const logoUrl = "https://lh3.googleusercontent.com/d/1efrTeOgMKrxJyTx6tauscp-xJ_Tp3Q-B";
+            // Masukkan link logo lama Anda di bawah ini khusus untuk hasil cetak PDF
+            // Jika sebelumnya tidak pakai logo (hanya teks), kosongkan saja menjadi ""
+            const logoUrl = "https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7"; 
             const img = new Image();
             img.crossOrigin = "Anonymous";
             img.onload = function() { generatePDF(this); };
@@ -1234,7 +1236,9 @@
                 doc.save(`Ecrew_${category.name.replace(/\s+/g, '_')}_${today.replace(/\//g, '-')}.pdf`);
             };
 
-            const logoUrl = "https://lh3.googleusercontent.com/d/1efrTeOgMKrxJyTx6tauscp-xJ_Tp3Q-B";
+            // Masukkan link logo lama Anda di bawah ini khusus untuk hasil cetak PDF
+            // Jika sebelumnya tidak pakai logo (hanya teks), kosongkan saja menjadi ""
+            const logoUrl = "https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7"; 
             const img = new Image();
             img.crossOrigin = "Anonymous";
             img.onload = function() { generatePDF(this); };
