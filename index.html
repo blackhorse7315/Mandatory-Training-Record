@@ -122,7 +122,7 @@
     <script>
         // --- DATA & STATE DEFINITION ---
         const categories = [
-            { id: 'crm', name: 'Mandatory Crew Resources Management' },
+            { id: 'crm', name: 'Crew Resources Management' },
             { id: 'dg', name: 'Dangerous Good' },
             { id: 'windshear', name: 'Windshear' },
             { id: 'alar', name: 'ALAR CFIT' },
@@ -365,7 +365,8 @@
                     crew[field] = value;
                 } else {
                     crew.training[categoryId][field] = value;
-                    if (field === 'expiryDate') {
+                    // PERBARUAN: Pastikan status dihitung ulang baik saat Issue Date maupun Expiry Date diubah
+                    if (field === 'expiryDate' || field === 'issueDate') {
                         recalculateStatus(crew, categoryId);
                     }
                 }
@@ -411,28 +412,19 @@
             // Filter data khusus untuk Dashboard: Sembunyikan 'initial-'
             const dashboardData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
             
-            // Kalkulasi Status untuk Dashboard berdasarkan "Status Terburuk" dari Crew
+            // PERBARUAN LOGIKA: Menghitung jumlah SELURUH record/sertifikat 
+            // di semua kategori secara aktual, bukan menghitung per orang.
             let validCount = 0;
             let expiringCount = 0;
             let expiredCount = 0;
 
             dashboardData.forEach(crew => {
-                let crewStatus = 'Valid';
-                // Loop semua kategori yang ia miliki
-                for (let cat of categories) {
-                    const s = crew.training[cat.id].status;
-                    if (s === 'Expired') {
-                        crewStatus = 'Expired';
-                        break; // Jika ada 1 yang expired, langsung cap Expired
-                    }
-                    if (s === 'Expiring Soon') {
-                        crewStatus = 'Expiring Soon'; // Jika tidak ada expired, setidaknya expiring soon
-                    }
-                }
-                
-                if (crewStatus === 'Expired') expiredCount++;
-                else if (crewStatus === 'Expiring Soon') expiringCount++;
-                else validCount++;
+                categories.forEach(cat => {
+                    const status = crew.training[cat.id]?.status;
+                    if (status === 'Valid' || status === 'Current') validCount++;
+                    else if (status === 'Expiring Soon') expiringCount++;
+                    else if (status === 'Expired') expiredCount++;
+                });
             });
             
             const trainingCardsHtml = categories.map(cat => `
@@ -471,7 +463,7 @@
                         <div class="p-4 rounded-full bg-green-50 text-green-600 mb-3">
                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
-                        <p class="text-sm font-medium text-slate-500 mb-1">Fully Compliant</p>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Valid Records</p>
                         <p class="text-3xl font-bold text-slate-800">${validCount}</p>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center text-center hover:shadow-md transition-shadow">
@@ -991,20 +983,18 @@
 
                 const dashboardData = mockData.filter(crew => !crew.id.toLowerCase().startsWith('initial-'));
 
+                // PERBARUAN PDF: Sesuaikan fungsi perhitungan di export PDF
                 let validCount = 0;
                 let expiringCount = 0;
                 let expiredCount = 0;
 
                 dashboardData.forEach(crew => {
-                    let crewStatus = 'Valid';
-                    for (let cat of categories) {
-                        const s = crew.training[cat.id].status;
-                        if (s === 'Expired') { crewStatus = 'Expired'; break; }
-                        if (s === 'Expiring Soon') { crewStatus = 'Expiring Soon'; }
-                    }
-                    if (crewStatus === 'Expired') expiredCount++;
-                    else if (crewStatus === 'Expiring Soon') expiringCount++;
-                    else validCount++;
+                    categories.forEach(cat => {
+                        const status = crew.training[cat.id]?.status;
+                        if (status === 'Valid' || status === 'Current') validCount++;
+                        else if (status === 'Expiring Soon') expiringCount++;
+                        else if (status === 'Expired') expiredCount++;
+                    });
                 });
 
                 doc.setTextColor(51, 65, 85); 
@@ -1012,7 +1002,7 @@
                 doc.setFontSize(10);
                 
                 doc.text(`Total Tracked Crew: ${dashboardData.length}`, 40, 130);
-                doc.text(`Fully Compliant: ${validCount}`, 40, 145);
+                doc.text(`Valid Records: ${validCount}`, 40, 145);
                 doc.text(`Expiring <= 60 Days: ${expiringCount}`, 250, 130);
                 doc.text(`Critical / Expired: ${expiredCount}`, 250, 145);
 
