@@ -304,6 +304,10 @@
             if (daysOffset < 0) {
                 training.status = 'Expired';
                 training.statusColor = 'bg-red-100 text-red-800 border border-red-200';
+            } else if (categoryId === 'passport' && daysOffset <= 180) {
+                // Aturan Khusus Passport: Dibawah 6 Bulan (180 hari)
+                training.status = 'Below 6 Month';
+                training.statusColor = 'bg-orange-100 text-orange-800 border border-orange-200';
             } else if (daysOffset <= 60) {
                 training.status = 'Expiring Soon';
                 training.statusColor = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
@@ -422,7 +426,7 @@
                 categories.forEach(cat => {
                     const status = crew.training[cat.id]?.status;
                     if (status === 'Valid' || status === 'Current') validCount++;
-                    else if (status === 'Expiring Soon') expiringCount++;
+                    else if (status === 'Expiring Soon' || status === 'Below 6 Month') expiringCount++; // Below 6 month ikut dihitung expiring
                     else if (status === 'Expired') expiredCount++;
                 });
             });
@@ -992,7 +996,7 @@
                     categories.forEach(cat => {
                         const status = crew.training[cat.id]?.status;
                         if (status === 'Valid' || status === 'Current') validCount++;
-                        else if (status === 'Expiring Soon') expiringCount++;
+                        else if (status === 'Expiring Soon' || status === 'Below 6 Month') expiringCount++; // Below 6 month ikut dihitung expiring
                         else if (status === 'Expired') expiredCount++;
                     });
                 });
@@ -1217,6 +1221,28 @@
                         if (data.section === 'body' && data.column.index === headRow.length - 1) {
                             if (data.cell.raw === 'Valid' || data.cell.raw === 'Current') data.cell.styles.textColor = [21, 128, 61]; 
                             else if (data.cell.raw === 'Expiring Soon') data.cell.styles.textColor = [161, 98, 7];
+                            else if (data.cell.raw === 'Below 6 Month') data.cell.styles.textColor = [194, 65, 12]; // Warna Oranye di PDF
+                            else if (data.cell.raw === 'Expired') data.cell.styles.textColor = [185, 28, 28];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                    }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 30;
+                doc.autoTable({
+                    startY: 145, 
+                    head: head,
+                    body: body,
+                    theme: 'striped',
+                    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 9, halign: 'center' },
+                    bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
+                    columnStyles: { 1: { halign: 'left' } },
+                    margin: { left: 40, right: 40 },
+                    didParseCell: function(data) {
+                        if (data.section === 'body' && data.column.index === headRow.length - 1) {
+                            if (data.cell.raw === 'Valid' || data.cell.raw === 'Current') data.cell.styles.textColor = [21, 128, 61]; 
+                            else if (data.cell.raw === 'Expiring Soon') data.cell.styles.textColor = [161, 98, 7];
+                            else if (data.cell.raw === 'Below 6 Month') data.cell.styles.textColor = [194, 65, 12]; // Warna Oranye di PDF
                             else if (data.cell.raw === 'Expired') data.cell.styles.textColor = [185, 28, 28];
                             data.cell.styles.fontStyle = 'bold';
                         }
