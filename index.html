@@ -224,7 +224,8 @@
                 const syncBtn = document.getElementById('sync-btn');
                 if(syncBtn) syncBtn.classList.remove('animate-spin', 'text-blue-500');
                 
-                navigate(currentView);
+                // Mencegah duplicate history saat sinkronisasi selesai
+                navigate(currentView, false); 
             }
         }
 
@@ -1279,7 +1280,12 @@
 
         // --- NAVIGATION LOGIC ---
 
-        function navigate(viewId) {
+        function navigate(viewId, pushToHistory = true) {
+            // Menambahkan state ke dalam history browser untuk mendukung tombol Back di HP
+            if (pushToHistory && currentView !== viewId) {
+                history.pushState({ viewId: viewId }, '', `#${viewId}`);
+            }
+
             currentView = viewId;
             isTableEditMode = false;
 
@@ -1332,7 +1338,19 @@
             }
         }
 
+        // Tangkap event ketika user menekan tombol Back di HP atau Browser
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.viewId) {
+                navigate(event.state.viewId, false); // Pindah halaman tanpa menambah riwayat baru
+            } else {
+                navigate('dashboard', false); // Fallback ke dashboard
+            }
+        });
+
         function initApp() {
+            // Set state awal saat aplikasi pertama kali dibuka
+            history.replaceState({ viewId: currentView }, '', `#${currentView}`);
+
             // Selalu ambil data terbaru langsung dari Google Sheets
             syncData(false);
             
