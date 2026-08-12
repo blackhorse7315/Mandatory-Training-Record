@@ -445,7 +445,10 @@
             <div id="tab-route" class="tab-content absolute inset-0 p-3 sm:p-6 hidden h-full overflow-hidden">
                 <div class="w-full h-full glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex flex-col relative overflow-hidden">
                     <div class="flex justify-between items-center mb-4 sm:mb-6 shrink-0">
-                        <h2 class="text-base sm:text-xl font-semibold"><i class="fas fa-route mr-2 text-blue-400"></i>Flight Routes</h2>
+                        <h2 class="text-base sm:text-xl font-semibold flex items-center">
+                            <i class="fas fa-route mr-2 text-blue-400"></i>Flight Routes
+                            <span id="routeSlotIndicator" class="ml-3 px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">0/90</span>
+                        </h2>
                         <div class="flex items-center gap-2 sm:gap-4">
                             <div class="relative hidden lg:block"> <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i> <input type="text" id="searchInputRoute" onkeyup="renderRouteList()" placeholder="Search Name..." class="bg-slate-800/80 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white outline-none focus:border-blue-500 w-48 xl:w-64"> </div>
                             <button onclick="openRouteForm()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition shadow-lg shadow-blue-500/20 flex items-center"> <i class="fas fa-plus sm:mr-2"></i> <span class="hidden sm:inline">Add New Route</span> </button>
@@ -1203,19 +1206,10 @@
                 console.warn('PERINGATAN: URL Google Sheet belum diatur! Aplikasi murni menggunakan Cloud Data. Masukkan URL Script di source code agar data dapat tampil.');
             }
             showView('loginScreen');
-            
-            try {
-                // OPTIMASI: Memuat semua database secara paralel (bersamaan) agar jauh lebih cepat
-                await Promise.all([
-                    loadUsers(),
-                    loadWaypoints(),
-                    loadAircrafts(),
-                    loadRoutes()
-                ]);
-            } catch (error) {
-                console.warn("Gagal memuat sebagian data saat init:", error);
-            }
-            
+            await loadUsers();
+            await loadWaypoints();
+            await loadAircrafts();
+            await loadRoutes();
             document.getElementById('editAdminUser').value = localStorage.getItem('adminUser') || 'admin';
             document.getElementById('editAdminPass').value = localStorage.getItem('adminPass') || 'ramdan28';
         }
@@ -1240,21 +1234,12 @@
             }
             const icons = document.querySelectorAll('.fa-sync-alt');
             icons.forEach(i => i.classList.add('fa-spin'));
-            
-            try {
-                // OPTIMASI: Memuat semua database secara paralel
-                await Promise.all([
-                    loadUsers(),
-                    loadWaypoints(),
-                    loadAircrafts(),
-                    loadRoutes()
-                ]);
-                alert('Semua data berhasil ditarik dan diperbarui dari Google Sheets!');
-            } catch (error) {
-                alert('Gagal menyinkronkan data. Silakan coba lagi.');
-            } finally {
-                icons.forEach(i => i.classList.remove('fa-spin'));
-            }
+            await loadUsers();
+            await loadWaypoints();
+            await loadAircrafts();
+            await loadRoutes();
+            icons.forEach(i => i.classList.remove('fa-spin'));
+            alert('Semua data berhasil ditarik dan diperbarui dari Google Sheets!');
         }
 
         function handleLogin(e) {
@@ -1947,31 +1932,20 @@
         function renderWaypoints() {
             const tbody = document.getElementById('waypointTableBody');
             const search = document.getElementById('searchInputWaypoint') ? document.getElementById('searchInputWaypoint').value.toLowerCase() : '';
+            tbody.innerHTML = '';
             
+            // PERBAIKAN: Memastikan wp.name diubah menjadi String agar tidak error "toLowerCase is not a function"
             const filtered = waypointsData.filter(wp => String(wp.name || '').toLowerCase().includes(search));
             
-            // OPTIMASI: Menggunakan HTML String Concatenation untuk rendering super cepat 
-            // menghindari manipulasi DOM satu per satu yang memberatkan browser
-            let htmlRows = '';
-            
             filtered.forEach(wp => {
-                htmlRows += `
-                <tr class="hover:bg-slate-800/50 transition group cursor-pointer" onclick="showWaypointDetail('${wp.id}')">
-                    <td class="px-3 sm:px-6 py-3 sm:py-4">${getIconHTML(wp.type)}</td>
-                    <td class="px-3 sm:px-6 py-3 sm:py-4 font-bold text-blue-400 tracking-wide">${String(wp.name || '').toUpperCase()}</td>
-                    <td class="px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell text-slate-300">
-                        <div class="text-[10px] sm:text-xs">${decToDMSStr(wp.lat, true)}</div>
-                        <div class="text-[10px] sm:text-xs text-slate-400">${decToDMSStr(wp.lon, false)}</div>
-                    </td>
-                    <td class="px-3 sm:px-6 py-3 sm:py-4 font-medium">${wp.elev} <span class="text-[8px] sm:text-[10px] text-slate-500">ft</span></td>
-                    <td class="px-3 sm:px-6 py-3 sm:py-4 text-right opacity-50 group-hover:opacity-100 transition">
-                        <button onclick="event.stopPropagation(); editWaypoint('${wp.id}')" class="text-blue-400 hover:text-blue-300 mr-2 sm:mr-3 p-1.5 sm:p-2 bg-blue-500/10 rounded-lg"><i class="fas fa-edit"></i></button>
-                        <button onclick="event.stopPropagation(); deleteWaypoint('${wp.id}')" class="text-red-400 hover:text-red-300 p-1.5 sm:p-2 bg-red-500/10 rounded-lg"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/50 transition group cursor-pointer';
+                tr.onclick = () => showWaypointDetail(wp.id);
+                
+                // PERBAIKAN: Memastikan wp.name diubah menjadi String saat merender baris tabel
+                tr.innerHTML = `<td class="px-3 sm:px-6 py-3 sm:py-4">${getIconHTML(wp.type)}</td><td class="px-3 sm:px-6 py-3 sm:py-4 font-bold text-blue-400 tracking-wide">${String(wp.name || '').toUpperCase()}</td><td class="px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell text-slate-300"><div class="text-[10px] sm:text-xs">${decToDMSStr(wp.lat, true)}</div><div class="text-[10px] sm:text-xs text-slate-400">${decToDMSStr(wp.lon, false)}</div></td><td class="px-3 sm:px-6 py-3 sm:py-4 font-medium">${wp.elev} <span class="text-[8px] sm:text-[10px] text-slate-500">ft</span></td><td class="px-3 sm:px-6 py-3 sm:py-4 text-right opacity-50 group-hover:opacity-100 transition"><button onclick="event.stopPropagation(); editWaypoint('${wp.id}')" class="text-blue-400 hover:text-blue-300 mr-2 sm:mr-3 p-1.5 sm:p-2 bg-blue-500/10 rounded-lg"><i class="fas fa-edit"></i></button><button onclick="event.stopPropagation(); deleteWaypoint('${wp.id}')" class="text-red-400 hover:text-red-300 p-1.5 sm:p-2 bg-red-500/10 rounded-lg"><i class="fas fa-trash"></i></button></td>`;
+                tbody.appendChild(tr);
             });
-            
-            tbody.innerHTML = htmlRows;
         }
 
         function showWaypointDetail(id) {
@@ -2620,13 +2594,6 @@
                             rt.etd = `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
                         } catch (e) {}
                     }
-                    
-                    // OPTIMASI: Lewati perhitungan rute trigonometri yang berat jika totalDist/EET sudah tersimpan di database
-                    if (rt.totalDist !== undefined && rt.totalEET !== undefined && rt.totalDist !== 0) {
-                        return rt;
-                    }
-                    
-                    // Jika data belum ada, baru hitung manual
                     let totalDist = 0;
                     let totalDecHours = 0;
                     if (rt.waypoints && Array.isArray(rt.waypoints)) {
@@ -2659,37 +2626,36 @@
             const tbody = document.getElementById('routeTableBody');
             const search = document.getElementById('searchInputRoute') ? document.getElementById('searchInputRoute').value.toLowerCase() : '';
             
-            const filtered = routesData.filter(rt => String(rt.name || '').toLowerCase().includes(search) || (rt.aircraftReg && String(rt.aircraftReg || '').toLowerCase().includes(search)));
+            // Update Indikator Sisa Slot Rute
+            const indicator = document.getElementById('routeSlotIndicator');
+            if (indicator) {
+                const count = routesData.length;
+                indicator.textContent = `${count}/90`;
+                if (count >= 90) {
+                    indicator.className = 'ml-3 px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30';
+                } else if (count >= 80) {
+                    indicator.className = 'ml-3 px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30';
+                } else {
+                    indicator.className = 'ml-3 px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30';
+                }
+            }
             
-            // OPTIMASI: Menggunakan HTML String Concatenation untuk rendering super cepat
-            let htmlRows = '';
-            
+            tbody.innerHTML = '';
+            // PERBAIKAN: Bungkus name dan aircraftReg dengan String()
+            const filtered = routesData.filter(rt => String(rt.name || '').toLowerCase().includes(search) || String(rt.aircraftReg || '').toLowerCase().includes(search));
             filtered.forEach(rt => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/50 transition group cursor-pointer';
+                tr.onclick = () => openRouteDetailModal(rt.id);
                 let originDest = '-';
                 if (rt.waypoints && rt.waypoints.length >= 2) {
                     originDest = `<span class="font-semibold text-emerald-400">${rt.waypoints[0].name}</span> <i class="fas fa-arrow-right text-slate-500 text-[8px] sm:text-[10px] mx-1"></i> <span class="font-semibold text-blue-400">${rt.waypoints[rt.waypoints.length - 1].name}</span>`;
                 } else if (rt.waypoints && rt.waypoints.length === 1) {
                     originDest = rt.waypoints[0].name;
                 }
-                
-                htmlRows += `
-                <tr class="hover:bg-slate-800/50 transition group cursor-pointer" onclick="openRouteDetailModal('${rt.id}')">
-                    <td class="px-4 py-3">
-                        <div class="font-bold text-white tracking-wide">${rt.name}</div>
-                        <div class="text-cyan-400 text-[9px] md:hidden mt-0.5"><i class="fas fa-plane mr-1"></i> ${rt.aircraftReg}</div>
-                    </td>
-                    <td class="px-4 py-3 text-cyan-400 text-[10px] sm:text-xs font-medium hidden md:table-cell">${rt.aircraftReg}</td>
-                    <td class="px-4 py-3 text-xs sm:text-sm">${originDest}</td>
-                    <td class="px-4 py-3 hidden sm:table-cell">${rt.totalDist} NM</td>
-                    <td class="px-4 py-3 text-orange-300 hidden sm:table-cell">${rt.totalEET}</td>
-                    <td class="px-4 py-3 text-right opacity-50 group-hover:opacity-100 transition">
-                        <button onclick="event.stopPropagation(); editRoute('${rt.id}')" class="text-blue-400 hover:text-blue-300 mr-2 sm:mr-3 p-1.5 sm:p-2 bg-blue-500/10 rounded-lg"><i class="fas fa-edit"></i></button>
-                        <button onclick="event.stopPropagation(); deleteRoute('${rt.id}')" class="text-red-400 hover:text-red-300 p-1.5 sm:p-2 bg-red-500/10 rounded-lg"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
+                tr.innerHTML = `<td class="px-4 py-3"><div class="font-bold text-white tracking-wide">${rt.name}</div><div class="text-cyan-400 text-[9px] md:hidden mt-0.5"><i class="fas fa-plane mr-1"></i> ${rt.aircraftReg}</div></td><td class="px-4 py-3 text-cyan-400 text-[10px] sm:text-xs font-medium hidden md:table-cell">${rt.aircraftReg}</td><td class="px-4 py-3 text-xs sm:text-sm">${originDest}</td><td class="px-4 py-3 hidden sm:table-cell">${rt.totalDist} NM</td><td class="px-4 py-3 text-orange-300 hidden sm:table-cell">${rt.totalEET}</td><td class="px-4 py-3 text-right opacity-50 group-hover:opacity-100 transition"><button onclick="event.stopPropagation(); editRoute('${rt.id}')" class="text-blue-400 hover:text-blue-300 mr-2 sm:mr-3 p-1.5 sm:p-2 bg-blue-500/10 rounded-lg"><i class="fas fa-edit"></i></button><button onclick="event.stopPropagation(); deleteRoute('${rt.id}')" class="text-red-400 hover:text-red-300 p-1.5 sm:p-2 bg-red-500/10 rounded-lg"><i class="fas fa-trash"></i></button></td>`;
+                tbody.appendChild(tr);
             });
-            
-            tbody.innerHTML = htmlRows;
         }
 
         function openRouteDetailModal(id) {
@@ -2753,10 +2719,14 @@
         }
 
         function closeRouteDetailModal() {
-            document.getElementById('routeDetailModal').classList.add('hidden');
+             document.getElementById('routeDetailModal').classList.add('hidden');
         }
 
         function duplicateRoute(id) {
+            if (routesData.length >= 90) {
+                alert("Peringatan: Kuota maksimal 90 rute telah tercapai! Anda tidak dapat menduplikasi rute. Silakan hapus rute lama terlebih dahulu.");
+                return;
+            }
             const rt = routesData.find(r => r.id === id);
             if (!rt) return;
             const clone = JSON.parse(JSON.stringify(rt));
@@ -3108,6 +3078,13 @@
 
         function saveRoute() {
             const id = document.getElementById('rtId').value;
+
+            // Validasi Kuota Maksimal Rute (hanya berlaku untuk penambahan rute baru, bukan edit)
+            if (!id && routesData.length >= 90) {
+                alert("Peringatan: Kuota maksimal 90 rute telah tercapai! Anda tidak dapat menyimpan rute baru. Silakan hapus rute lama terlebih dahulu.");
+                return;
+            }
+
             const name = document.getElementById('rtName').value.trim();
             const acId = document.getElementById('rtAircraft').value;
             const etd = document.getElementById('rtEtd').value;
